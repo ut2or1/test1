@@ -59,21 +59,23 @@ jobs:
         id: cache-gcc
         uses: actions/cache@v4
         with:
-          path: /opt/arm-gnu-toolchain-${{ inputs.toolchain_version }}
+          path: /opt/arm-gnu-toolchain-${{ inputs.toolchain_version }}-x86_64-arm-none-eabi
           key: arm-gcc-${{ inputs.toolchain_version }}-${{ runner.os }}
 
       - name: Download ARM GCC Toolchain
         if: steps.cache-gcc.outputs.cache-hit != 'true'
         run: |
           wget -q "https://developer.arm.com/-/media/Files/downloads/gnu/${{ inputs.toolchain_version }}/binrel/arm-gnu-toolchain-${{ inputs.toolchain_version }}-x86_64-arm-none-eabi.tar.xz"
-          sudo mkdir -p /opt/arm-gnu-toolchain-${{ inputs.toolchain_version }}
           sudo tar -xf arm-gnu-toolchain-${{ inputs.toolchain_version }}-x86_64-arm-none-eabi.tar.xz -C /opt
           rm arm-gnu-toolchain-${{ inputs.toolchain_version }}-x86_64-arm-none-eabi.tar.xz
 
-      - name: Setup ARM GCC Path
-        run: echo "/opt/arm-gnu-toolchain-${{ inputs.toolchain_version }}-x86_64-arm-none-eabi/bin" >> $GITHUB_PATH
+      - name: Setup ARM GCC symlinks
+        run: |
+          TOOLCHAIN_DIR="/opt/arm-gnu-toolchain-${{ inputs.toolchain_version }}-x86_64-arm-none-eabi/bin"
+          echo "$TOOLCHAIN_DIR" >> $GITHUB_PATH
+          sudo ln -sf $TOOLCHAIN_DIR/arm-none-eabi-* /usr/local/bin/
 
-      - name: Show GCC version
+      - name: Verify ARM GCC
         run: arm-none-eabi-gcc --version
 
       - name: Build with GCC
@@ -112,7 +114,13 @@ jobs:
           sudo apt-get install -y libstdc++-12-dev-armel-cross
           rm llvm.sh
 
-      - name: Show Clang version
+      - name: Setup Clang symlinks
+        run: |
+          sudo ln -sf /usr/bin/clang-18 /usr/local/bin/clang-18
+          sudo ln -sf /usr/bin/llvm-objcopy-18 /usr/local/bin/llvm-objcopy-18
+          sudo ln -sf /usr/bin/llvm-size-18 /usr/local/bin/llvm-size-18
+
+      - name: Verify Clang
         run: clang-18 --version
 
       - name: Build with Clang
@@ -151,13 +159,8 @@ jobs:
           sudo dpkg -i renode_1.15.0_amd64.deb || sudo apt-get install -f -y
           rm renode_1.15.0_amd64.deb
 
-      - name: Cache Python dependencies
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/pip
-          key: pip-${{ runner.os }}-${{ hashFiles('**/requirements.txt') }}
-          restore-keys: |
-            pip-${{ runner.os }}-
+      - name: Setup Renode symlink
+        run: sudo ln -sf /opt/renode/bin/renode /usr/local/bin/renode
 
       - name: Download GCC artifacts
         if: needs.build-gcc.result == 'success'
@@ -175,10 +178,3 @@ jobs:
 
       - name: Run Renode tests
         run: renode --script test/k64_test.resc --console
-
-      - name: Cache test results
-        if: always()
-        uses: actions/cache@v4
-        with:
-          path: test-results/
-          key: test-results-${{ github.run_id }}-${{ github.run_attempt }}
