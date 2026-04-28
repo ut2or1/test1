@@ -34,14 +34,8 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Cache cppcheck
-        uses: actions/cache@v4
-        with:
-          path: /usr/bin/cppcheck
-          key: cppcheck-${{ runner.os }}
-
       - name: Install cppcheck
-        run: sudo apt-get install -y cppcheck
+        run: sudo apt-get update && sudo apt-get install -y cppcheck
 
       - name: Run cppcheck
         run: make check
@@ -55,31 +49,22 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Cache ARM GCC Toolchain
-        id: cache-gcc
-        uses: actions/cache@v4
-        with:
-          path: /opt/arm-gnu-toolchain-${{ inputs.toolchain_version }}-x86_64-arm-none-eabi
-          key: arm-gcc-${{ inputs.toolchain_version }}-${{ runner.os }}
-
-      - name: Download ARM GCC Toolchain
-        if: steps.cache-gcc.outputs.cache-hit != 'true'
+      - name: Download and extract ARM GCC
         run: |
-          wget -q "https://developer.arm.com/-/media/Files/downloads/gnu/${{ inputs.toolchain_version }}/binrel/arm-gnu-toolchain-${{ inputs.toolchain_version }}-x86_64-arm-none-eabi.tar.xz"
-          sudo tar -xf arm-gnu-toolchain-${{ inputs.toolchain_version }}-x86_64-arm-none-eabi.tar.xz -C /opt
-          rm arm-gnu-toolchain-${{ inputs.toolchain_version }}-x86_64-arm-none-eabi.tar.xz
-
-      - name: Setup ARM GCC symlinks
-        run: |
-          TOOLCHAIN_DIR="/opt/arm-gnu-toolchain-${{ inputs.toolchain_version }}-x86_64-arm-none-eabi/bin"
-          echo "$TOOLCHAIN_DIR" >> $GITHUB_PATH
-          sudo ln -sf $TOOLCHAIN_DIR/arm-none-eabi-* /usr/local/bin/
-
-      - name: Verify ARM GCC
-        run: arm-none-eabi-gcc --version
+          VERSION="${{ inputs.toolchain_version }}"
+          wget -q "https://developer.arm.com/-/media/Files/downloads/gnu/${VERSION}/binrel/arm-gnu-toolchain-${VERSION}-x86_64-arm-none-eabi.tar.xz" -O /tmp/gcc.tar.xz
+          sudo tar -xf /tmp/gcc.tar.xz -C /opt
+          rm /tmp/gcc.tar.xz
+          GCC_DIR=$(ls -d /opt/arm-gnu-toolchain-*)
+          echo "GCC_DIR=$GCC_DIR" >> $GITHUB_ENV
+          echo "GCC found at: $GCC_DIR"
 
       - name: Build with GCC
-        run: make -j$(nproc)
+        run: |
+          make -j$(nproc) \
+            CC="$GCC_DIR/bin/arm-none-eabi-gcc" \
+            OBJCOPY="$GCC_DIR/bin/arm-none-eabi-objcopy" \
+            SIZE="$GCC_DIR/bin/arm-none-eabi-size"
 
       - name: Upload GCC artifacts
         uses: actions/upload-artifact@v4
@@ -98,30 +83,13 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Cache LLVM/Clang
-        id: cache-clang
-        uses: actions/cache@v4
-        with:
-          path: /usr/lib/llvm-18
-          key: llvm-clang-18-${{ runner.os }}
-
       - name: Install LLVM/Clang
-        if: steps.cache-clang.outputs.cache-hit != 'true'
         run: |
           wget -q https://apt.llvm.org/llvm.sh
           chmod +x llvm.sh
           sudo ./llvm.sh 18
           sudo apt-get install -y libstdc++-12-dev-armel-cross
           rm llvm.sh
-
-      - name: Setup Clang symlinks
-        run: |
-          sudo ln -sf /usr/bin/clang-18 /usr/local/bin/clang-18
-          sudo ln -sf /usr/bin/llvm-objcopy-18 /usr/local/bin/llvm-objcopy-18
-          sudo ln -sf /usr/bin/llvm-size-18 /usr/local/bin/llvm-size-18
-
-      - name: Verify Clang
-        run: clang-18 --version
 
       - name: Build with Clang
         run: make -j$(nproc) CC=clang-18 USE_CLANG=1
@@ -143,24 +111,11 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Cache Renode
-        id: cache-renode
-        uses: actions/cache@v4
-        with:
-          path: |
-            /usr/bin/renode
-            /opt/renode
-          key: renode-1.15.0-${{ runner.os }}
-
       - name: Install Renode
-        if: steps.cache-renode.outputs.cache-hit != 'true'
         run: |
           wget -q https://github.com/renode/renode/releases/download/v1.15.0/renode_1.15.0_amd64.deb
           sudo dpkg -i renode_1.15.0_amd64.deb || sudo apt-get install -f -y
           rm renode_1.15.0_amd64.deb
-
-      - name: Setup Renode symlink
-        run: sudo ln -sf /opt/renode/bin/renode /usr/local/bin/renode
 
       - name: Download GCC artifacts
         if: needs.build-gcc.result == 'success'
