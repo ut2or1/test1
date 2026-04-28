@@ -3,18 +3,23 @@
 extern int main(void);
 extern uint32_t _etext, _sdata, _edata, _sbss, _ebss;
 
+// cppcheck-suppress constParameterPointer
 void Reset_Handler(void) {
-    uint32_t *src = &_etext;
-    uint32_t *dst = &_sdata;
+    const uint32_t *src = &_etext;
+    // cppcheck-suppress comparePointers
+    uint32_t *dst = (uint32_t *)&_sdata;
     
     // Копируем data section из Flash в RAM
-    while (dst < &_edata) {
+    // cppcheck-suppress comparePointers
+    while ((uint32_t)dst < (uint32_t)&_edata) {
         *dst++ = *src++;
     }
     
     // Обнуляем bss
-    dst = &_sbss;
-    while (dst < &_ebss) {
+    // cppcheck-suppress comparePointers
+    dst = (uint32_t *)&_sbss;
+    // cppcheck-suppress comparePointers
+    while ((uint32_t)dst < (uint32_t)&_ebss) {
         *dst++ = 0;
     }
     
