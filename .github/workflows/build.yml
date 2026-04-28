@@ -115,7 +115,7 @@ jobs:
         run: |
           wget -q https://github.com/renode/renode/releases/download/v1.16.1/renode-1.16.1.linux-portable.tar.gz
           tar -xzf renode-1.16.1.linux-portable.tar.gz
-          echo "$(pwd)/renode-1.16.1/bin" >> $GITHUB_PATH
+          echo "$(pwd)/renode_1.16.1_portable" >> $GITHUB_PATH
           rm renode-1.16.1.linux-portable.tar.gz
 
       - name: Verify Renode
