@@ -1,7 +1,7 @@
 #include "MK64F12.h"
 
 #define LED_PIN      (1 << 21)   // PTC21 - красный светодиод на FRDM-K64F
-#define LED_PORT     PTC
+#define LED_PORT     PORTC
 #define DELAY_COUNT  1000000
 
 void delay(volatile uint32_t count) {
