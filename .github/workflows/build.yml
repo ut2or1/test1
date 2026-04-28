@@ -3,6 +3,15 @@ name: Build K64FX512 Firmware
 on:
   workflow_dispatch:
     inputs:
+      compiler:
+        description: 'Compiler'
+        required: true
+        type: choice
+        default: 'gcc'
+        options:
+          - 'gcc'
+          - 'clang'
+          - 'both'
       toolchain_version:
         description: 'ARM GCC Toolchain Version'
         required: true
@@ -31,27 +40,56 @@ jobs:
       - name: Run cppcheck
         run: make check
 
-  build:
+  build-gcc:
     runs-on: ubuntu-latest
     needs: static-analysis
-
+    if: inputs.compiler == 'gcc' || inputs.compiler == 'both'
+    
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install ARM Toolchain ${{ inputs.toolchain_version }}
+      - name: Install ARM GCC Toolchain ${{ inputs.toolchain_version }}
         uses: carlosperate/arm-none-eabi-gcc-action@v1
         with:
           release: ${{ inputs.toolchain_version }}
 
-      - name: Show compiler version
+      - name: Show GCC version
         run: arm-none-eabi-gcc --version
 
-      - name: Build firmware
+      - name: Build with GCC
         run: make -j$(nproc)
 
-      - name: Upload firmware artifacts
+      - name: Upload GCC artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: k64-firmware-${{ inputs.toolchain_version }}
+          name: k64-firmware-gcc-${{ inputs.toolchain_version }}
+          path: build/*.elf
+
+  build-clang:
+    runs-on: ubuntu-latest
+    needs: static-analysis
+    if: inputs.compiler == 'clang' || inputs.compiler == 'both'
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install LLVM/Clang
+        run: |
+          wget https://apt.llvm.org/llvm.sh
+          chmod +x llvm.sh
+          sudo ./llvm.sh 18
+          sudo apt-get install -y libstdc++-12-dev-armel-cross
+
+      - name: Show Clang version
+        run: clang-18 --version
+
+      - name: Build with Clang
+        run: make -j$(nproc) CC=clang-18 USE_CLANG=1
+
+      - name: Upload Clang artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: k64-firmware-clang
           path: build/*.elf
