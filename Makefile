@@ -1,8 +1,14 @@
-# Определяем компилятор
-CC ?= arm-none-eabi-gcc
-OBJCOPY ?= arm-none-eabi-objcopy
-SIZE ?= arm-none-eabi-size
+# Компилятор и утилиты
+CC = arm-none-eabi-gcc
+OBJCOPY = arm-none-eabi-objcopy
+SIZE = arm-none-eabi-size
 CPPCHECK = cppcheck
+LUAJIT = luajit
+RENODE = renode
+
+# Конфигурация Gitea
+GITEA_SERVER ?= gitea.example.com
+GITEA_ORG ?= actions
 
 # Флаги зависят от компилятора
 ifeq ($(USE_CLANG),1)
@@ -23,7 +29,7 @@ LDFLAGS += $(CPUFLAGS) -T linker/MK64FX512.ld -Wl,--gc-sections -nostartfiles
 
 # Директории
 SRCDIR = src
-INCDIR = inc
+INCDIR = include
 BUILDDIR = build
 TARGET = $(BUILDDIR)/k64-blinky
 
@@ -32,11 +38,16 @@ SRCS = $(wildcard $(SRCDIR)/*.c)
 OBJS = $(SRCS:$(SRCDIR)/%.c=$(BUILDDIR)/%.o)
 
 # Правила
-.PHONY: all check clean
+.PHONY: all check test clean upload-packages install-lua-deps setup-gitea
 
 all: $(BUILDDIR) $(TARGET).elf $(TARGET).hex $(TARGET).bin
 	@echo "Build complete with $(CC)!"
 	$(SIZE) $(TARGET).elf
+
+# Запуск тестов в Renode
+test: all
+	@echo "Running tests in Renode..."
+	$(RENODE) --script test/k64_test.resc --console
 
 # Статический анализ
 check:
@@ -56,6 +67,22 @@ check:
 	            -I$(INCDIR) \
 	            $(SRCDIR)/
 	@echo "Static analysis passed!"
+
+# Загрузка пакетов в Gitea
+upload-packages:
+	@echo "Uploading packages to Gitea..."
+	PACKAGES_USER=$(PACKAGES_USER) \
+	PACKAGES_TOKEN=$(PACKAGES_TOKEN) \
+	GITEA_SERVER=$(GITEA_SERVER) \
+	GITEA_ORG=$(GITEA_ORG) \
+	$(LUAJIT) scripts/upload_packages.lua
+
+# Установка зависимостей для скриптов
+install-lua-deps:
+	$(LUAJIT) scripts/install_deps.lua
+
+# Полный цикл настройки Gitea
+setup-gitea: install-lua-deps upload-packages
 
 $(BUILDDIR):
 	mkdir -p $(BUILDDIR)
