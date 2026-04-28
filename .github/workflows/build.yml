@@ -138,4 +138,4 @@ jobs:
           path: build/
 
       - name: Run Renode tests
-        run: renode --script test/k64_test.resc --console
+        run: renode test/k64_test.resc --console
