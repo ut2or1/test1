@@ -1,13 +1,6 @@
 $bin?=@build/k64-blinky.elf
 
 echo "Loading ELF file: $bin"
-echo "Checking if file exists..."
-if [ -f "$bin" ] {
-    echo "File found"
-} else {
-    echo "ERROR: File not found: $bin"
-    exit 1
-}
 
 using sysbus
 
@@ -39,11 +32,17 @@ if $pddr != 0x0 {
 }
 
 echo "Monitoring LED state for 5 seconds..."
-for $i in range(1,5) {
+$prev = 0
+for $i in range(1,6) {
     sleep 1.0
     $pdor = sysbus.gpioc.PDOR
     $led = $pdor & 0x00200000
     echo "Second $i: PDOR = $pdor, LED = $led"
+    
+    if $led != $prev {
+        echo "  LED CHANGED!"
+    }
+    $prev = $led
 }
 
 echo "=== Test completed ==="
