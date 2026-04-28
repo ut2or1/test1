@@ -28,7 +28,7 @@ $(BUILDDIR):
 	mkdir -p $(BUILDDIR)
 
 $(BUILDDIR)/%.o: $(SRCDIR)/%.c
-	$(CC) $(CFLAGS) -Iinclude -c $< -o $@
+	$(CC) $(CFLAGS) -Iinc -c $< -o $@
 
 $(TARGET).elf: $(OBJS)
 	$(CC) $(LDFLAGS) $^ -o $@
