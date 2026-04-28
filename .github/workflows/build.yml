@@ -127,7 +127,7 @@ jobs:
         if: needs.build-gcc.result == 'success'
         uses: actions/download-artifact@v4
         with:
-          name: k64-firmware-gcc-${{ inputs.toolchain_version }}
+          name: k64-firmware-gcc
           path: build/
 
       - name: Download Clang artifacts
