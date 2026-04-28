@@ -8,7 +8,7 @@ echo "Creating machine..."
 mach create "k64-blinky-test"
 
 echo "Loading platform description..."
-machine LoadPlatformDescription @platforms/cpus/k64f.repl
+machine LoadPlatformDescription @platforms/cpus/nxp-k6xf.repl
 
 showAnalyzer sysbus.uart3
 
