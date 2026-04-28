@@ -111,11 +111,17 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install Renode
+      - name: Download Renode portable
         run: |
-          wget -q https://github.com/renode/renode/releases/download/v1.15.0/renode_1.15.0_amd64.deb
-          sudo dpkg -i renode_1.15.0_amd64.deb || sudo apt-get install -f -y
-          rm renode_1.15.0_amd64.deb
+          wget -q https://github.com/renode/renode/releases/download/v1.15.0/renode-1.15.0.linux-portable.tar.gz
+          tar -xzf renode-1.15.0.linux-portable.tar.gz
+          echo "$(pwd)/renode-1.15.0/bin" >> $GITHUB_PATH
+          rm renode-1.15.0.linux-portable.tar.gz
+
+      - name: Verify Renode
+        run: |
+          which renode
+          renode --version
 
       - name: Download GCC artifacts
         if: needs.build-gcc.result == 'success'
