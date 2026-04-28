@@ -1,0 +1,43 @@
+name: Build K64FX512 Firmware
+
+on:
+  workflow_dispatch:
+    inputs:
+      toolchain_version:
+        description: 'ARM GCC Toolchain Version'
+        required: true
+        type: choice
+        default: '15.2.Rel1'
+        options:
+          - '10.3-2021.10'
+          - '11.2-2022.02'
+          - '12.2.Rel1'
+          - '13.2.Rel1'
+          - '13.3.Rel1'
+          - '14.2.Rel1'
+          - '15.2.Rel1'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install ARM Toolchain ${{ inputs.toolchain_version }}
+        uses: carlosperate/arm-none-eabi-gcc-action@v1
+        with:
+          release: ${{ inputs.toolchain_version }}
+
+      - name: Show compiler version
+        run: arm-none-eabi-gcc --version
+
+      - name: Build firmware
+        run: make -j$(nproc)
+
+      - name: Upload firmware artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: k64-firmware-${{ inputs.toolchain_version }}
+          path: build/*.elf
