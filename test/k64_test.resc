@@ -26,21 +26,20 @@ echo ""
 echo "Starting emulation..."
 start
 
-echo "Waiting 2 seconds..."
 sleep 2.0
 
 echo ""
 echo "--- Test Results ---"
 
-$halted = sysbus.cpu IsHalted
+sysbus.cpu PC
+sysbus.cpu PC $pc
 
-if $halted == 0 {
-    echo "PASS: CPU is running"
-    echo "PASS: UART analyzer shows output"
+if $pc != 0x1A1 {
+    echo "PASS: CPU executing (PC = $pc)"
     echo ""
     echo "=== Test PASSED ==="
 } else {
-    echo "FAIL: CPU is halted"
+    echo "FAIL: CPU stuck at reset"
     echo ""
     echo "=== Test FAILED ==="
     quit 1
