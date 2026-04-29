@@ -58,62 +58,24 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y -qq --download-only cppcheck
           cp /var/cache/apt/archives/*.deb /opt/cppcheck-packages/
-          echo "Downloaded packages:"
-          ls -la /opt/cppcheck-packages/
 
       - name: Install cppcheck from cached packages
         run: |
           if [ -d "/opt/cppcheck-packages" ] && [ -n "$(ls -A /opt/cppcheck-packages/*.deb 2>/dev/null)" ]; then
             sudo dpkg -i /opt/cppcheck-packages/*.deb
           else
-            sudo apt-get update -qq
-            sudo apt-get install -y -qq cppcheck
+            sudo apt-get update -qq && sudo apt-get install -y -qq cppcheck
           fi
 
       - name: Run cppcheck
         run: make check
 
-  setup-ccache:
+  build-gcc:
     runs-on: ubuntu-latest
     needs: static-analysis
     if: |
       always() &&
-      (needs.static-analysis.result == 'success' || needs.static-analysis.result == 'skipped')
-
-    steps:
-      - name: Cache ccache deb packages
-        id: cache-ccache
-        uses: actions/cache@v4
-        with:
-          path: /opt/ccache-packages
-          key: ccache-packages-${{ runner.os }}-${{ runner.arch }}
-
-      - name: Download ccache and dependencies
-        if: steps.cache-ccache.outputs.cache-hit != 'true'
-        run: |
-          mkdir -p /opt/ccache-packages
-          cd /opt/ccache-packages
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq --download-only ccache
-          cp /var/cache/apt/archives/*.deb /opt/ccache-packages/
-          echo "Downloaded packages:"
-          ls -la /opt/ccache-packages/
-
-      - name: Install ccache from cached packages
-        run: |
-          if [ -d "/opt/ccache-packages" ] && [ -n "$(ls -A /opt/ccache-packages/*.deb 2>/dev/null)" ]; then
-            sudo dpkg -i /opt/ccache-packages/*.deb
-          else
-            sudo apt-get update -qq
-            sudo apt-get install -y -qq ccache
-          fi
-
-  build-gcc:
-    runs-on: ubuntu-latest
-    needs: setup-ccache
-    if: |
-      always() &&
-      (needs.setup-ccache.result == 'success' || needs.setup-ccache.result == 'skipped') &&
+      (needs.static-analysis.result == 'success' || needs.static-analysis.result == 'skipped') &&
       (inputs.compiler == 'gcc' || inputs.compiler == 'both')
 
     steps:
@@ -145,6 +107,24 @@ jobs:
           echo "GCC_DIR=$GCC_DIR" >> $GITHUB_ENV
           echo "GCC_DIR from cache: $GCC_DIR"
 
+      - name: Cache ccache deb packages
+        id: cache-ccache
+        uses: actions/cache@v4
+        with:
+          path: /opt/ccache-packages
+          key: ccache-packages-${{ runner.os }}-${{ runner.arch }}
+
+      - name: Install ccache from cached packages
+        run: |
+          if [ -d "/opt/ccache-packages" ] && [ -n "$(ls -A /opt/ccache-packages/*.deb 2>/dev/null)" ]; then
+            sudo dpkg -i /opt/ccache-packages/*.deb
+          else
+            sudo apt-get update -qq && sudo apt-get install -y -qq --download-only ccache
+            mkdir -p /opt/ccache-packages
+            cp /var/cache/apt/archives/*.deb /opt/ccache-packages/
+            sudo dpkg -i /opt/ccache-packages/*.deb
+          fi
+
       - name: Cache ccache objects
         uses: actions/cache@v4
         with:
@@ -159,7 +139,6 @@ jobs:
           export CCACHE_DIR=$HOME/.ccache
           ccache -z > /dev/null
           make -j$(nproc)
-          echo ""
           echo "=== ccache statistics ==="
           ccache -s
 
@@ -173,10 +152,10 @@ jobs:
 
   build-clang:
     runs-on: ubuntu-latest
-    needs: setup-ccache
+    needs: static-analysis
     if: |
       always() &&
-      (needs.setup-ccache.result == 'success' || needs.setup-ccache.result == 'skipped') &&
+      (needs.static-analysis.result == 'success' || needs.static-analysis.result == 'skipped') &&
       (inputs.compiler == 'clang' || inputs.compiler == 'both')
 
     steps:
@@ -200,8 +179,6 @@ jobs:
           sudo ./llvm.sh 18
           rm llvm.sh
           cp /var/cache/apt/archives/*.deb /opt/clang-packages/
-          echo "Downloaded packages:"
-          ls -la /opt/clang-packages/
 
       - name: Install LLVM/Clang from cached packages
         run: |
@@ -229,16 +206,31 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y -qq --download-only libstdc++-12-dev-armel-cross
           cp /var/cache/apt/archives/*.deb /opt/libstdcpp-packages/
-          echo "Downloaded packages:"
-          ls -la /opt/libstdcpp-packages/
 
       - name: Install libstdc++-armel-cross from cached packages
         run: |
           if [ -d "/opt/libstdcpp-packages" ] && [ -n "$(ls -A /opt/libstdcpp-packages/*.deb 2>/dev/null)" ]; then
             sudo dpkg -i /opt/libstdcpp-packages/*.deb
           else
-            sudo apt-get update -qq
-            sudo apt-get install -y -qq libstdc++-12-dev-armel-cross
+            sudo apt-get update -qq && sudo apt-get install -y -qq libstdc++-12-dev-armel-cross
+          fi
+
+      - name: Cache ccache deb packages
+        id: cache-ccache-clang
+        uses: actions/cache@v4
+        with:
+          path: /opt/ccache-packages
+          key: ccache-packages-${{ runner.os }}-${{ runner.arch }}
+
+      - name: Install ccache from cached packages
+        run: |
+          if [ -d "/opt/ccache-packages" ] && [ -n "$(ls -A /opt/ccache-packages/*.deb 2>/dev/null)" ]; then
+            sudo dpkg -i /opt/ccache-packages/*.deb
+          else
+            sudo apt-get update -qq && sudo apt-get install -y -qq --download-only ccache
+            mkdir -p /opt/ccache-packages
+            cp /var/cache/apt/archives/*.deb /opt/ccache-packages/
+            sudo dpkg -i /opt/ccache-packages/*.deb
           fi
 
       - name: Cache ccache objects
@@ -254,7 +246,6 @@ jobs:
           export CCACHE_DIR=$HOME/.ccache-clang
           ccache -z > /dev/null
           make -j$(nproc) CC=clang-18 USE_CLANG=1
-          echo ""
           echo "=== ccache statistics ==="
           ccache -s
 
