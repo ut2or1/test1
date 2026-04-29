@@ -64,7 +64,7 @@ jobs:
       always() &&
       (needs.static-analysis.result == 'success' || needs.static-analysis.result == 'skipped') &&
       (inputs.compiler == 'gcc' || inputs.compiler == 'both')
-    
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -94,12 +94,37 @@ jobs:
           echo "GCC_DIR=$GCC_DIR" >> $GITHUB_ENV
           echo "GCC_DIR from cache: $GCC_DIR"
 
-      - name: Build with GCC
+      - name: Cache ccache binary
+        id: cache-ccache
+        uses: actions/cache@v4
+        with:
+          path: /usr/local/bin/ccache
+          key: ccache-binary-${{ runner.os }}-${{ runner.arch }}
+
+      - name: Install ccache
+        if: steps.cache-ccache.outputs.cache-hit != 'true'
         run: |
-          make -j$(nproc) \
-            CC="$GCC_DIR/bin/arm-none-eabi-gcc" \
-            OBJCOPY="$GCC_DIR/bin/arm-none-eabi-objcopy" \
-            SIZE="$GCC_DIR/bin/arm-none-eabi-size"
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ccache
+          sudo cp /usr/bin/ccache /usr/local/bin/ccache
+
+      - name: Cache ccache objects
+        uses: actions/cache@v4
+        with:
+          path: ~/.ccache
+          key: ccache-obj-${{ inputs.toolchain_version }}-${{ runner.os }}-${{ hashFiles('src/**') }}
+          restore-keys: |
+            ccache-obj-${{ inputs.toolchain_version }}-${{ runner.os }}-
+
+      - name: Build with GCC (ccache)
+        run: |
+          export PATH="$GCC_DIR/bin:/usr/local/bin:$PATH"
+          export CCACHE_DIR=$HOME/.ccache
+          ccache -z > /dev/null
+          make -j$(nproc)
+          echo ""
+          echo "=== ccache statistics ==="
+          ccache -s
 
       - name: Upload GCC artifacts
         uses: actions/upload-artifact@v4
@@ -116,7 +141,7 @@ jobs:
       always() &&
       (needs.static-analysis.result == 'success' || needs.static-analysis.result == 'skipped') &&
       (inputs.compiler == 'clang' || inputs.compiler == 'both')
-    
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -160,7 +185,7 @@ jobs:
       (needs.build-gcc.result == 'success' || needs.build-gcc.result == 'skipped') &&
       (needs.build-clang.result == 'success' || needs.build-clang.result == 'skipped') &&
       (needs.build-gcc.result == 'success' || needs.build-clang.result == 'success')
-    
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -204,4 +229,3 @@ jobs:
       - name: Run Renode tests
         run: |
           renode --plain --console test/k64_test.resc
-          echo "EXIT CODE: $?"
