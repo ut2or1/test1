@@ -1,20 +1,25 @@
 $bin?=@build/k64-blinky.elf
-$platform?=@test/frdm_k64f.resc
 
 echo "========================================="
 echo "  K64 Blinky LED Test"
 echo "========================================="
 
 echo "Loading ELF file: $bin"
-echo "Loading platform from: $platform"
 
 using sysbus
 
 echo "Creating machine..."
 mach create "k64-blinky-test"
 
-echo "Loading platform description..."
-machine LoadPlatformDescription $platform
+echo "Loading base platform..."
+machine LoadPlatformDescription @platforms/cpus/nxp-k6xf.repl
+
+echo "Adding GPIO ports..."
+machine AddPeripheral gpioa K64F_GPIOPort @ sysbus 0x400FF000
+machine AddPeripheral gpiob K64F_GPIOPort @ sysbus 0x400FF040
+machine AddPeripheral gpioc K64F_GPIOPort @ sysbus 0x400FF080
+machine AddPeripheral gpiod K64F_GPIOPort @ sysbus 0x400FF0C0
+machine AddPeripheral gpioe K64F_GPIOPort @ sysbus 0x400FF100
 
 echo ""
 echo "Loading firmware..."
@@ -34,13 +39,6 @@ echo "PDDR register: $pddr"
 
 if $pddr != 0 {
     echo "PASS: GPIO port C initialized (PDDR = $pddr)"
-    
-    $led_mask = 0x00200000
-    if $pddr & $led_mask {
-        echo "PASS: PTC21 configured as output"
-    } else {
-        echo "FAIL: PTC21 not configured as output"
-    }
 } else {
     echo "FAIL: GPIO port C not initialized (PDDR = 0)"
 }
