@@ -57,24 +57,24 @@ jobs:
         id: cache-cppcheck
         uses: actions/cache@v4
         with:
-          path: /opt/cppcheck-packages
+          path: /tmp/cppcheck-packages
           key: cppcheck-packages-${{ runner.os }}-${{ runner.arch }}
 
       - name: Download cppcheck and dependencies
         if: steps.cache-cppcheck.outputs.cache-hit != 'true'
         run: |
-          mkdir -p /opt/cppcheck-packages
-          cd /opt/cppcheck-packages
+          mkdir -p /tmp/cppcheck-packages
+          cd /tmp/cppcheck-packages
           sudo apt-get update -qq
           sudo apt-get install -y -qq --no-install-recommends --download-only cppcheck
-          cp /var/cache/apt/archives/*.deb /opt/cppcheck-packages/
+          cp /var/cache/apt/archives/*.deb /tmp/cppcheck-packages/
 
       - name: Install cppcheck from cached packages
         run: |
           if command -v cppcheck &> /dev/null; then
             echo "cppcheck already installed"
-          elif [ -d "/opt/cppcheck-packages" ] && [ -n "$(ls -A /opt/cppcheck-packages/*.deb 2>/dev/null)" ]; then
-            sudo dpkg -i --force-depends /opt/cppcheck-packages/*.deb || true
+          elif [ -d "/tmp/cppcheck-packages" ] && [ -n "$(ls -A /tmp/cppcheck-packages/*.deb 2>/dev/null)" ]; then
+            sudo dpkg -i --force-depends /tmp/cppcheck-packages/*.deb || true
             sudo apt-get install -f -y -qq --no-install-recommends
           else
             sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends cppcheck
@@ -99,7 +99,7 @@ jobs:
         id: cache-gcc
         uses: actions/cache@v4
         with:
-          path: /opt/arm-gnu-toolchain.7z
+          path: /tmp/arm-gnu-toolchain.7z
           key: arm-gcc-${{ inputs.toolchain_version }}-${{ runner.os }}-v2
 
       - name: Download and compress ARM GCC
@@ -107,22 +107,22 @@ jobs:
         run: |
           VERSION="${{ inputs.toolchain_version }}"
           wget -q "https://developer.arm.com/-/media/Files/downloads/gnu/${VERSION}/binrel/arm-gnu-toolchain-${VERSION}-x86_64-arm-none-eabi.tar.xz" -O /tmp/gcc.tar.xz
-          sudo tar -xf /tmp/gcc.tar.xz -C /opt
+          tar -xf /tmp/gcc.tar.xz -C /tmp
           rm /tmp/gcc.tar.xz
-          GCC_DIR=$(ls -d /opt/arm-gnu-toolchain-*)
+          GCC_DIR=$(ls -d /tmp/arm-gnu-toolchain-*)
           sudo apt-get update -qq && sudo apt-get install -y -qq p7zip-full
-          sudo 7z a -mx=9 -mmt=on /opt/arm-gnu-toolchain.7z $GCC_DIR
-          sudo rm -rf $GCC_DIR
+          7z a -mx=9 -mmt=on /tmp/arm-gnu-toolchain.7z $GCC_DIR
+          rm -rf $GCC_DIR
           echo "GCC_DIR=$GCC_DIR" >> $GITHUB_ENV
           echo "Compressed size:"
-          ls -lh /opt/arm-gnu-toolchain.7z
+          ls -lh /tmp/arm-gnu-toolchain.7z
 
       - name: Extract GCC from 7z cache
         if: steps.cache-gcc.outputs.cache-hit == 'true'
         run: |
           sudo apt-get update -qq && sudo apt-get install -y -qq p7zip-full
-          sudo 7z x /opt/arm-gnu-toolchain.7z -o/opt/
-          GCC_DIR=$(ls -d /opt/arm-gnu-toolchain-*)
+          7z x /tmp/arm-gnu-toolchain.7z -o/tmp/
+          GCC_DIR=$(ls -d /tmp/arm-gnu-toolchain-*)
           echo "GCC_DIR=$GCC_DIR" >> $GITHUB_ENV
           echo "GCC_DIR from cache: $GCC_DIR"
 
@@ -130,21 +130,21 @@ jobs:
         id: cache-ccache
         uses: actions/cache@v4
         with:
-          path: /opt/ccache-packages
+          path: /tmp/ccache-packages
           key: ccache-packages-${{ runner.os }}-${{ runner.arch }}
 
       - name: Install ccache from cached packages
         run: |
           if command -v ccache &> /dev/null; then
             echo "ccache already installed"
-          elif [ -d "/opt/ccache-packages" ] && [ -n "$(ls -A /opt/ccache-packages/*.deb 2>/dev/null)" ]; then
-            sudo dpkg -i --force-depends /opt/ccache-packages/*.deb || true
+          elif [ -d "/tmp/ccache-packages" ] && [ -n "$(ls -A /tmp/ccache-packages/*.deb 2>/dev/null)" ]; then
+            sudo dpkg -i --force-depends /tmp/ccache-packages/*.deb || true
             sudo apt-get install -f -y -qq --no-install-recommends
           else
             sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends --download-only ccache
-            mkdir -p /opt/ccache-packages
-            cp /var/cache/apt/archives/*.deb /opt/ccache-packages/
-            sudo dpkg -i /opt/ccache-packages/*.deb
+            mkdir -p /tmp/ccache-packages
+            cp /var/cache/apt/archives/*.deb /tmp/ccache-packages/
+            sudo dpkg -i /tmp/ccache-packages/*.deb
           fi
 
       - name: Cache ccache objects
@@ -161,6 +161,7 @@ jobs:
           export CCACHE_DIR=$HOME/.ccache
           ccache -z > /dev/null
           make -j$(nproc)
+          echo ""
           echo "=== ccache statistics ==="
           ccache -s
 
@@ -202,7 +203,7 @@ jobs:
         id: cache-clang
         uses: actions/cache@v4
         with:
-          path: /opt/${{ steps.clang-vars.outputs.clang_package }}.7z
+          path: /tmp/${{ steps.clang-vars.outputs.clang_package }}.7z
           key: clang-prebuilt-${{ steps.clang-vars.outputs.clang_version }}-${{ runner.os }}-${{ runner.arch }}-v2
 
       - name: Download and compress LLVM/Clang
@@ -210,27 +211,27 @@ jobs:
         run: |
           echo "Downloading ${{ steps.clang-vars.outputs.clang_url }}"
           wget -q "${{ steps.clang-vars.outputs.clang_url }}" -O /tmp/clang.tar.xz
-          sudo tar -xf /tmp/clang.tar.xz -C /opt
+          tar -xf /tmp/clang.tar.xz -C /tmp
           rm /tmp/clang.tar.xz
           echo "Compressing with 7z..."
           sudo apt-get update -qq && sudo apt-get install -y -qq p7zip-full
-          sudo 7z a -mx=9 -mmt=on /opt/${{ steps.clang-vars.outputs.clang_package }}.7z /opt/${{ steps.clang-vars.outputs.clang_package }}
-          sudo rm -rf /opt/${{ steps.clang-vars.outputs.clang_package }}
+          7z a -mx=9 -mmt=on /tmp/${{ steps.clang-vars.outputs.clang_package }}.7z /tmp/${{ steps.clang-vars.outputs.clang_package }}
+          rm -rf /tmp/${{ steps.clang-vars.outputs.clang_package }}
           echo "Compressed size:"
-          ls -lh /opt/${{ steps.clang-vars.outputs.clang_package }}.7z
+          ls -lh /tmp/${{ steps.clang-vars.outputs.clang_package }}.7z
 
       - name: Extract Clang from 7z cache
         if: steps.cache-clang.outputs.cache-hit == 'true'
         run: |
           echo "Extracting from 7z cache..."
           sudo apt-get update -qq && sudo apt-get install -y -qq p7zip-full
-          sudo 7z x /opt/${{ steps.clang-vars.outputs.clang_package }}.7z -o/opt/
+          7z x /tmp/${{ steps.clang-vars.outputs.clang_package }}.7z -o/tmp/
           echo "Extraction complete!"
-          ls -la /opt/${{ steps.clang-vars.outputs.clang_package }}/bin/ | head -5
+          ls -la /tmp/${{ steps.clang-vars.outputs.clang_package }}/bin/ | head -5
 
       - name: Set Clang PATH
         run: |
-          CLANG_DIR="/opt/${{ steps.clang-vars.outputs.clang_package }}"
+          CLANG_DIR="/tmp/${{ steps.clang-vars.outputs.clang_package }}"
           echo "$CLANG_DIR/bin" >> $GITHUB_PATH
           echo "CLANG_DIR=$CLANG_DIR" >> $GITHUB_ENV
           echo "Clang PATH set to $CLANG_DIR/bin"
@@ -243,21 +244,21 @@ jobs:
         id: cache-ccache-clang
         uses: actions/cache@v4
         with:
-          path: /opt/ccache-packages
+          path: /tmp/ccache-packages
           key: ccache-packages-${{ runner.os }}-${{ runner.arch }}
 
       - name: Install ccache from cached packages
         run: |
           if command -v ccache &> /dev/null; then
             echo "ccache already installed"
-          elif [ -d "/opt/ccache-packages" ] && [ -n "$(ls -A /opt/ccache-packages/*.deb 2>/dev/null)" ]; then
-            sudo dpkg -i --force-depends /opt/ccache-packages/*.deb || true
+          elif [ -d "/tmp/ccache-packages" ] && [ -n "$(ls -A /tmp/ccache-packages/*.deb 2>/dev/null)" ]; then
+            sudo dpkg -i --force-depends /tmp/ccache-packages/*.deb || true
             sudo apt-get install -f -y -qq --no-install-recommends
           else
             sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends --download-only ccache
-            mkdir -p /opt/ccache-packages
-            cp /var/cache/apt/archives/*.deb /opt/ccache-packages/
-            sudo dpkg -i /opt/ccache-packages/*.deb
+            mkdir -p /tmp/ccache-packages
+            cp /var/cache/apt/archives/*.deb /tmp/ccache-packages/
+            sudo dpkg -i /tmp/ccache-packages/*.deb
           fi
 
       - name: Cache ccache objects
@@ -274,6 +275,7 @@ jobs:
           export CCACHE_DIR=$HOME/.ccache-clang
           ccache -z > /dev/null
           make -j$(nproc) CC="clang" USE_CLANG=1
+          echo ""
           echo "=== ccache statistics ==="
           ccache -s
 
@@ -302,30 +304,30 @@ jobs:
         id: cache-renode
         uses: actions/cache@v4
         with:
-          path: renode_1.16.1_portable.7z
+          path: /tmp/renode_1.16.1_portable.7z
           key: renode-1.16.1-${{ runner.os }}-v2
 
       - name: Download and compress Renode
         if: steps.cache-renode.outputs.cache-hit != 'true'
         run: |
           wget -q https://github.com/renode/renode/releases/download/v1.16.1/renode-1.16.1.linux-portable.tar.gz
-          tar -xzf renode-1.16.1.linux-portable.tar.gz
+          tar -xzf renode-1.16.1.linux-portable.tar.gz -C /tmp
           rm renode-1.16.1.linux-portable.tar.gz
           sudo apt-get update -qq && sudo apt-get install -y -qq p7zip-full
-          7z a -mx=9 -mmt=on renode_1.16.1_portable.7z renode_1.16.1_portable
-          rm -rf renode_1.16.1_portable
+          7z a -mx=9 -mmt=on /tmp/renode_1.16.1_portable.7z /tmp/renode_1.16.1_portable
+          rm -rf /tmp/renode_1.16.1_portable
           echo "Compressed size:"
-          ls -lh renode_1.16.1_portable.7z
+          ls -lh /tmp/renode_1.16.1_portable.7z
 
       - name: Extract Renode from 7z cache
         if: steps.cache-renode.outputs.cache-hit == 'true'
         run: |
           sudo apt-get update -qq && sudo apt-get install -y -qq p7zip-full
-          7z x renode_1.16.1_portable.7z
+          7z x /tmp/renode_1.16.1_portable.7z -o/tmp/
           echo "Extraction complete!"
 
       - name: Add Renode to PATH
-        run: echo "$(pwd)/renode_1.16.1_portable" >> $GITHUB_PATH
+        run: echo "/tmp/renode_1.16.1_portable" >> $GITHUB_PATH
 
       - name: Verify Renode
         run: |
