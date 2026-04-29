@@ -10,6 +10,9 @@ mach create "k64-blinky-test"
 echo "Loading platform description..."
 machine LoadPlatformDescription @platforms/cpus/nxp-k6xf.repl
 
+echo "Available UARTs and peripherals:"
+peripherals
+
 showAnalyzer sysbus.uart3
 
 echo "Loading firmware..."
