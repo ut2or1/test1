@@ -40,15 +40,17 @@ sleep 0.5
 echo ""
 echo "--- GPIO Configuration Check ---"
 
-$pddr = sysbus.gpioc.PDDR
+sysbus ReadDoubleWord 0x400FF154 $pddr
 echo "PDDR register: $pddr"
 
 if $pddr != 0 {
     echo "PASS: GPIO port C initialized"
     echo "  PDDR value: $pddr"
     
+    sysbus ReadDoubleWord 0x400FF154 $pddr_val
     $led_mask = 0x00200000
-    if $pddr & $led_mask {
+    
+    if $pddr_val & $led_mask {
         echo "PASS: PTC21 configured as output"
     } else {
         echo "FAIL: PTC21 not configured as output"
@@ -67,16 +69,15 @@ $toggles = 0
 
 for $i in range(1,6) {
     sleep 1.0
-    $pdor = sysbus.gpioc.PDOR
+    
+    sysbus ReadDoubleWord 0x400FF134 $pdor
     $led = $pdor & 0x00200000
     
     if $led == 0 {
-        $led_state = "OFF"
+        echo "Second $i: PDOR=$pdor, LED=OFF"
     } else {
-        $led_state = "ON "
+        echo "Second $i: PDOR=$pdor, LED=ON"
     }
-    
-    echo "Second $i: PDOR=$pdor, LED=$led ($led_state)"
     
     if $prev != -1 {
         if $led != $prev {
@@ -103,17 +104,16 @@ if $toggles >= 2 {
 
 echo ""
 echo "--- GPIO Final State ---"
-$pdor = sysbus.gpioc.PDOR
-$pddr = sysbus.gpioc.PDDR
-echo "Final PDDR: $pddr"
-echo "Final PDOR: $pdor"
-echo "Final LED state: "
+sysbus ReadDoubleWord 0x400FF154 $pddr_final
+sysbus ReadDoubleWord 0x400FF134 $pdor_final
+echo "Final PDDR: $pddr_final"
+echo "Final PDOR: $pdor_final"
 
-$led_final = $pdor & 0x00200000
+$led_final = $pdor_final & 0x00200000
 if $led_final == 0 {
-    echo "  OFF"
+    echo "Final LED state: OFF"
 } else {
-    echo "  ON"
+    echo "Final LED state: ON"
 }
 
 echo ""
