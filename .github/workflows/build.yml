@@ -190,7 +190,7 @@ jobs:
           echo "clang_url=${CLANG_URL}" >> $GITHUB_OUTPUT
           echo "Clang ${CLANG_VERSION}: ${CLANG_URL}"
 
-      - name: Cache LLVM/Clang pre-built
+      - name: Cache LLVM/Clang
         id: cache-clang
         uses: actions/cache@v4
         with:
@@ -201,48 +201,26 @@ jobs:
         if: steps.cache-clang.outputs.cache-hit != 'true'
         run: |
           echo "Downloading ${{ steps.clang-vars.outputs.clang_url }}"
-          wget -q "${{ steps.clang-vars.outputs.clang_url }}" -O /tmp/clang-full.tar.xz
-
-          echo "Extracting only needed files..."
-          mkdir -p /tmp/clang
-          cd /tmp/clang
-          tar -xf /tmp/clang-full.tar.xz \
-            --wildcards "*/bin/clang" \
-            --wildcards "*/bin/clang-*" \
-            --wildcards "*/bin/llvm-objcopy" \
-            --wildcards "*/bin/llvm-size" \
-            --wildcards "*/lib/clang" \
-            --wildcards "*/lib/clang/*/include" \
-            --wildcards "*/include" \
-            --wildcards '*/include/module.modulemap'
-
-          echo "Creating stripped archive..."
-          cd /tmp/clang
-          tar -cJf /tmp/clang.tar.xz *
-
-          rm -rf /tmp/clang /tmp/clang-full.tar.xz
-          echo "Stripped size:"
+          wget -q "${{ steps.clang-vars.outputs.clang_url }}" -O /tmp/clang.tar.xz
+          echo "Downloaded size:"
           ls -lh /tmp/clang.tar.xz
 
       - name: Extract Clang
         run: |
-          mkdir -p /tmp/clang
-          tar -xf /tmp/clang.tar.xz -C /tmp/clang
-          CLANG_DIR=$(ls -d /tmp/clang/*-Linux-X64 2>/dev/null || ls -d /tmp/clang/LLVM-* 2>/dev/null)
-          echo "CLANG_DIR=$CLANG_DIR" >> $GITHUB_ENV
+          tar -xf /tmp/clang.tar.xz -C /tmp
           echo "Extraction complete!"
-          ls -la $CLANG_DIR/bin/ | head -10
+          ls -la /tmp/${{ steps.clang-vars.outputs.clang_package }}/bin/ | head -5
 
       - name: Set Clang PATH
         run: |
+          CLANG_DIR="/tmp/${{ steps.clang-vars.outputs.clang_package }}"
           echo "$CLANG_DIR/bin" >> $GITHUB_PATH
           echo "CLANG_DIR=$CLANG_DIR" >> $GITHUB_ENV
           echo "Clang PATH set to $CLANG_DIR/bin"
 
       - name: Verify Clang
         run: |
-          clang --version
-          ld.lld --version || true
+          clang --version || ls -la $CLANG_DIR/bin/
 
       - name: Cache ccache deb packages
         id: cache-ccache-clang
