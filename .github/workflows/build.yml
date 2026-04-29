@@ -206,7 +206,6 @@ jobs:
           echo "Extracting only needed files..."
           mkdir -p /tmp/clang
           cd /tmp/clang
-          tar -tf /tmp/clang-full.tar.xz | grep -E "(bin/clang|lib/clang)"
           tar -xf /tmp/clang-full.tar.xz \
             --wildcards "*/bin/clang" \
             --wildcards "*/bin/clang-*" \
