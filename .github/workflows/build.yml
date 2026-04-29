@@ -207,8 +207,6 @@ jobs:
           mkdir -p /tmp/clang
           cd /tmp/clang
           tar -xf /tmp/clang-full.tar.xz \
-            --warning=no-no-match \
-            --no-anchored \
             --wildcards "*/bin/clang" \
             --wildcards "*/bin/clang-*" \
             --wildcards "*/bin/llvm-objcopy" \
