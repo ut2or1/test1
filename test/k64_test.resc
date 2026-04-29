@@ -11,15 +11,15 @@ using sysbus
 echo "Creating machine..."
 mach create "k64-blinky-test"
 
-echo "Loading base platform..."
+echo "Loading platform and adding GPIO ports..."
+
 machine LoadPlatformDescription @platforms/cpus/nxp-k6xf.repl
 
-echo "Adding GPIO ports..."
-machine AddPeripheral gpioa K64F_GPIOPort @ sysbus 0x400FF000
-machine AddPeripheral gpiob K64F_GPIOPort @ sysbus 0x400FF040
-machine AddPeripheral gpioc K64F_GPIOPort @ sysbus 0x400FF080
-machine AddPeripheral gpiod K64F_GPIOPort @ sysbus 0x400FF0C0
-machine AddPeripheral gpioe K64F_GPIOPort @ sysbus 0x400FF100
+gpioa: GPIOPort @ sysbus 0x400FF000
+gpiob: GPIOPort @ sysbus 0x400FF040
+gpioc: GPIOPort @ sysbus 0x400FF080
+gpiod: GPIOPort @ sysbus 0x400FF0C0
+gpioe: GPIOPort @ sysbus 0x400FF100
 
 echo ""
 echo "Loading firmware..."
