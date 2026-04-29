@@ -1,7 +1,7 @@
 $bin?=@build/k64-blinky.elf
 
 echo "========================================="
-echo "  K64 Blinky LED Test"
+echo "  K64 UART Test"
 echo "========================================="
 
 echo "Loading ELF file: $bin"
@@ -9,27 +9,14 @@ echo "Loading ELF file: $bin"
 using sysbus
 
 echo "Creating machine..."
-mach create "k64-blinky-test"
+mach create "k64-uart-test"
 
 echo "Loading platform..."
 machine LoadPlatformDescription @platforms/cpus/nxp-k6xf.repl
 
-# =============================================================================
-# ВАЖНО: Платформа nxp-k6xf.repl НЕ включает модель GPIO
-# SVD-файл добавляет только теги для логирования, но не создаёт регистры
-# 
-# РЕШЕНИЕ 1: Добавить тег с заглушкой для регистра (только для чтения)
-# РЕШЕНИЕ 2: Использовать реальную модель GPIO (если доступна)
-# =============================================================================
-
-# Добавляем тег-заглушку для GPIOC (адреса 0x400FF000-0x400FF1FF)
-# Это позволит читать/писать без ошибок, но значения будут "плавающими"
-sysbus:
-    init:
-        AddTag "GPIOC_PDDR" 0x400FF154 0x4 ReadWrite
-        AddTag "GPIOC_PDOR" 0x400FF134 0x4 ReadWrite
-        AddTag "GPIOC_PSOR" 0x400FF004 0x4 WriteOnly
-        AddTag "GPIOC_PCOR" 0x400FF008 0x4 WriteOnly
+echo ""
+echo "Setting up UART0 analyzer..."
+showAnalyzer sysbus.uart0
 
 echo ""
 echo "Loading firmware..."
@@ -39,69 +26,33 @@ echo ""
 echo "Starting emulation..."
 start
 
-sleep 1.0
-
-echo ""
-echo "--- GPIO Configuration Check ---"
-
-# ✅ ПРАВИЛЬНЫЙ синтаксис: $var = команда
-# Если регистр не существует, вернётся 0 или ошибка
-$pddr_value = sysbus ReadDoubleWord 0x400FF154
-echo "PDDR register: 0x$pddr_value"
-
-if $pddr_value != 0 {
-    echo "PASS: GPIO port C initialized (PDDR = 0x$pddr_value)"
-} else {
-    echo "INFO: PDDR = 0 (может быть нормально, если прошивка ещё не инициализировала порт)"
-}
-
-echo ""
-echo "--- LED Blink Test ---"
-echo "Monitoring LED state for 5 seconds..."
+echo "Waiting for UART output..."
 echo ""
 
-$toggles = 0
-$prev = -1
+$line = ""
+$last_time = 0
 
-for $i in range(1, 6) {
+for $i in range(1,10) {
     sleep 1.0
     
-    # ✅ Правильное присваивание
-    $pdor_value = sysbus ReadDoubleWord 0x400FF134
-    $led = $pdor_value & 0x00200000  # бит 21 = предполагаемый пин светодиода
-    
-    if $led == 0 {
-        echo "Second $i: LED = OFF"
+    $data = sysbus.uart0 Data
+    if $data != "" {
+        echo "UART0 output: $data"
+        $line = $data
     } else {
-        echo "Second $i: LED = ON"
+        echo "Second $i: waiting for data..."
     }
-    
-    if $prev != -1 {
-        if $led != $prev {
-            echo "  -> LED TOGGLED!"
-            $toggles = $toggles + 1
-        }
-    }
-    $prev = $led
 }
 
 echo ""
 echo "--- Test Results ---"
-echo "LED toggles detected: $toggles"
-
-if $toggles >= 2 {
-    echo "PASS: LED is blinking correctly"
-    $result = "SUCCESS"
+if $line != "" {
+    echo "PASS: UART0 is transmitting data"
+    echo "Last output: $line"
 } else {
-    echo "INFO: LED did not toggle (expected >= 2, got $toggles)"
-    echo "      Это может означать, что:"
-    echo "      1. Прошивка не инициализирует порт в эмуляции"
-    echo "      2. Используется другой пин (проверьте код прошивки)"
-    echo "      3. GPIO-периферия не смоделирована в платформе"
-    $result = "INCONCLUSIVE"
+    echo "FAIL: No UART output detected"
 }
 
 echo ""
-echo "=== Test completed: $result ==="
-
+echo "=== Test completed ==="
 stop
