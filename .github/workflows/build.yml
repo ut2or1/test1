@@ -212,11 +212,10 @@ jobs:
             --wildcards "*/bin/clang-*" \
             --wildcards "*/bin/llvm-objcopy" \
             --wildcards "*/bin/llvm-size" \
-            --wildcards "*/bin/ld.lld" \
-            --wildcards "*/bin/ld.lld-*" \
             --wildcards "*/lib/clang" \
             --wildcards "*/lib/clang/*/include" \
-            --wildcards "*/include"
+            --wildcards "*/include" \
+            --wildcards '*/include/module.modulemap'
 
           echo "Creating stripped archive..."
           cd /tmp/clang
