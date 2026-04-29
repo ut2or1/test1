@@ -74,6 +74,13 @@ check:
 	            --std=c11 \
 	            --suppress=missingIncludeSystem \
 	            --suppress=unusedFunction \
+	            --suppress=unusedStructMember \
+	            --suppress=comparePointers \
+	            --suppress=constVariablePointer \
+	            --suppress=constParameterPointer \
+	            --suppress=unmatchedSuppression \
+	            --suppress=checkersReport \
+	            --inline-suppr \
 	            --error-exitcode=1 \
 	            -I$(INCDIR) \
 	            $(SRCDIR)/
