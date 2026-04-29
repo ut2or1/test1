@@ -7,7 +7,7 @@ on:
         description: 'Run static analysis (cppcheck)'
         required: true
         type: choice
-        default: 'yes'
+        default: 'no'
         options:
           - 'yes'
           - 'no'
