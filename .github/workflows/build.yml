@@ -7,7 +7,7 @@ on:
         description: 'Run static analysis (cppcheck)'
         required: true
         type: choice
-        default: 'no'
+        default: 'yes'
         options:
           - 'yes'
           - 'no'
@@ -69,7 +69,15 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Cache ARM GCC Toolchain
+        id: cache-gcc
+        uses: actions/cache@v4
+        with:
+          path: /opt/arm-gnu-toolchain-*
+          key: arm-gcc-${{ inputs.toolchain_version }}-${{ runner.os }}
+
       - name: Download and extract ARM GCC
+        if: steps.cache-gcc.outputs.cache-hit != 'true'
         run: |
           VERSION="${{ inputs.toolchain_version }}"
           wget -q "https://developer.arm.com/-/media/Files/downloads/gnu/${VERSION}/binrel/arm-gnu-toolchain-${VERSION}-x86_64-arm-none-eabi.tar.xz" -O /tmp/gcc.tar.xz
@@ -79,11 +87,12 @@ jobs:
           echo "GCC_DIR=$GCC_DIR" >> $GITHUB_ENV
           echo "GCC found at: $GCC_DIR"
 
-      - name: Cache ARM GCC Toolchain
-        uses: actions/cache@v4
-        with:
-          path: /opt/arm-gnu-toolchain-*
-          key: arm-gcc-${{ inputs.toolchain_version }}-${{ runner.os }}
+      - name: Set GCC_DIR from cache
+        if: steps.cache-gcc.outputs.cache-hit == 'true'
+        run: |
+          GCC_DIR=$(ls -d /opt/arm-gnu-toolchain-*)
+          echo "GCC_DIR=$GCC_DIR" >> $GITHUB_ENV
+          echo "GCC_DIR from cache: $GCC_DIR"
 
       - name: Build with GCC
         run: |
@@ -112,15 +121,8 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install LLVM/Clang
-        run: |
-          wget -q https://apt.llvm.org/llvm.sh
-          chmod +x llvm.sh
-          sudo ./llvm.sh 18
-          sudo apt-get install -y libstdc++-12-dev-armel-cross
-          rm llvm.sh
-
       - name: Cache LLVM/Clang
+        id: cache-clang
         uses: actions/cache@v4
         with:
           path: |
@@ -129,6 +131,15 @@ jobs:
             /usr/bin/llvm-objcopy-18
             /usr/bin/llvm-size-18
           key: llvm-clang-18-${{ runner.os }}
+
+      - name: Install LLVM/Clang
+        if: steps.cache-clang.outputs.cache-hit != 'true'
+        run: |
+          wget -q https://apt.llvm.org/llvm.sh
+          chmod +x llvm.sh
+          sudo ./llvm.sh 18
+          sudo apt-get install -y libstdc++-12-dev-armel-cross
+          rm llvm.sh
 
       - name: Build with Clang
         run: make -j$(nproc) CC=clang-18 USE_CLANG=1
@@ -154,18 +165,22 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Download Renode portable
-        run: |
-          wget -q https://github.com/renode/renode/releases/download/v1.16.1/renode-1.16.1.linux-portable.tar.gz
-          tar -xzf renode-1.16.1.linux-portable.tar.gz
-          echo "$(pwd)/renode_1.16.1_portable" >> $GITHUB_PATH
-          rm renode-1.16.1.linux-portable.tar.gz
-
       - name: Cache Renode
+        id: cache-renode
         uses: actions/cache@v4
         with:
           path: renode_1.16.1_portable
           key: renode-1.16.1-${{ runner.os }}
+
+      - name: Download Renode portable
+        if: steps.cache-renode.outputs.cache-hit != 'true'
+        run: |
+          wget -q https://github.com/renode/renode/releases/download/v1.16.1/renode-1.16.1.linux-portable.tar.gz
+          tar -xzf renode-1.16.1.linux-portable.tar.gz
+          rm renode-1.16.1.linux-portable.tar.gz
+
+      - name: Add Renode to PATH
+        run: echo "$(pwd)/renode_1.16.1_portable" >> $GITHUB_PATH
 
       - name: Verify Renode
         run: |
