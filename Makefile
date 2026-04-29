@@ -20,12 +20,12 @@ GITEA_ORG ?= actions
 ifeq ($(USE_CLANG),1)
     # Отменяем предыдущее обертывание
     ifdef CCACHE
-        CC = $(CCACHE) clang-18
+        CC = $(CCACHE) clang
     else
-        CC = clang-18
+        CC = clang
     endif
-    OBJCOPY = llvm-objcopy-18
-    SIZE = llvm-size-18
+    OBJCOPY = llvm-objcopy
+    SIZE = llvm-size
     CPUFLAGS = --target=arm-none-eabi -mcpu=cortex-m4 -mfloat-abi=hard -mfpu=fpv4-sp-d16
     CFLAGS += -fno-common
     LDFLAGS += -nostdlib
