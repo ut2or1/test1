@@ -7,7 +7,7 @@ on:
         description: 'Run static analysis (cppcheck)'
         required: true
         type: choice
-        default: 'no'
+        default: 'yes'
         options:
           - 'yes'
           - 'no'
@@ -69,28 +69,20 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Download and extract ARM GCC (if not cached)
+      - name: Download and extract ARM GCC
         run: |
           VERSION="${{ inputs.toolchain_version }}"
-          GCC_DIR="/opt/arm-gnu-toolchain-${VERSION}-x86_64-arm-none-eabi"
-          
-          if [ ! -d "$GCC_DIR" ]; then
-            echo "Downloading ARM GCC ${VERSION}..."
-            wget -q "https://developer.arm.com/-/media/Files/downloads/gnu/${VERSION}/binrel/arm-gnu-toolchain-${VERSION}-x86_64-arm-none-eabi.tar.xz" -O /tmp/gcc.tar.xz
-            sudo tar -xf /tmp/gcc.tar.xz -C /opt
-            rm /tmp/gcc.tar.xz
-            echo "Extraction complete!"
-          else
-            echo "ARM GCC already exists at $GCC_DIR (from cache)"
-          fi
-          
+          wget -q "https://developer.arm.com/-/media/Files/downloads/gnu/${VERSION}/binrel/arm-gnu-toolchain-${VERSION}-x86_64-arm-none-eabi.tar.xz" -O /tmp/gcc.tar.xz
+          sudo tar -xf /tmp/gcc.tar.xz -C /opt
+          rm /tmp/gcc.tar.xz
+          GCC_DIR=$(ls -d /opt/arm-gnu-toolchain-*)
           echo "GCC_DIR=$GCC_DIR" >> $GITHUB_ENV
-          ls -la "$GCC_DIR/bin/" | head -5
+          echo "GCC found at: $GCC_DIR"
 
       - name: Cache ARM GCC Toolchain
         uses: actions/cache@v4
         with:
-          path: /opt/arm-gnu-toolchain-${{ inputs.toolchain_version }}-x86_64-arm-none-eabi
+          path: /opt/arm-gnu-toolchain-*
           key: arm-gcc-${{ inputs.toolchain_version }}-${{ runner.os }}
 
       - name: Build with GCC
@@ -120,8 +112,15 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Install LLVM/Clang
+        run: |
+          wget -q https://apt.llvm.org/llvm.sh
+          chmod +x llvm.sh
+          sudo ./llvm.sh 18
+          sudo apt-get install -y libstdc++-12-dev-armel-cross
+          rm llvm.sh
+
       - name: Cache LLVM/Clang
-        id: cache-clang
         uses: actions/cache@v4
         with:
           path: |
@@ -130,15 +129,6 @@ jobs:
             /usr/bin/llvm-objcopy-18
             /usr/bin/llvm-size-18
           key: llvm-clang-18-${{ runner.os }}
-
-      - name: Install LLVM/Clang
-        if: steps.cache-clang.outputs.cache-hit != 'true'
-        run: |
-          wget -q https://apt.llvm.org/llvm.sh
-          chmod +x llvm.sh
-          sudo ./llvm.sh 18
-          sudo apt-get install -y libstdc++-12-dev-armel-cross
-          rm llvm.sh
 
       - name: Build with Clang
         run: make -j$(nproc) CC=clang-18 USE_CLANG=1
@@ -164,22 +154,18 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Download Renode portable
+        run: |
+          wget -q https://github.com/renode/renode/releases/download/v1.16.1/renode-1.16.1.linux-portable.tar.gz
+          tar -xzf renode-1.16.1.linux-portable.tar.gz
+          echo "$(pwd)/renode_1.16.1_portable" >> $GITHUB_PATH
+          rm renode-1.16.1.linux-portable.tar.gz
+
       - name: Cache Renode
-        id: cache-renode
         uses: actions/cache@v4
         with:
           path: renode_1.16.1_portable
           key: renode-1.16.1-${{ runner.os }}
-
-      - name: Download Renode portable
-        if: steps.cache-renode.outputs.cache-hit != 'true'
-        run: |
-          wget -q https://github.com/renode/renode/releases/download/v1.16.1/renode-1.16.1.linux-portable.tar.gz
-          tar -xzf renode-1.16.1.linux-portable.tar.gz
-          rm renode-1.16.1.linux-portable.tar.gz
-
-      - name: Add Renode to PATH
-        run: echo "$(pwd)/renode_1.16.1_portable" >> $GITHUB_PATH
 
       - name: Verify Renode
         run: |
@@ -199,9 +185,6 @@ jobs:
         with:
           name: k64-firmware-clang
           path: build/
-
-      - name: List build artifacts
-        run: ls -la build/ || echo "No build directory"
 
       - name: Run Renode tests
         run: renode test/k64_test.resc --console
