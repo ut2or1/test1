@@ -6,6 +6,12 @@ CPPCHECK = cppcheck
 LUAJIT = luajit
 RENODE = renode
 
+# Использовать ccache если доступен
+CCACHE := $(shell which ccache 2>/dev/null)
+ifdef CCACHE
+    CC := $(CCACHE) $(CC)
+endif
+
 # Конфигурация Gitea
 GITEA_SERVER ?= gitea.example.com
 GITEA_ORG ?= actions
@@ -15,6 +21,9 @@ ifeq ($(USE_CLANG),1)
     CC = clang-18
     OBJCOPY = llvm-objcopy-18
     SIZE = llvm-size-18
+    ifdef CCACHE
+        CC := $(CCACHE) $(CC)
+    endif
     CPUFLAGS = --target=arm-none-eabi -mcpu=cortex-m4 -mfloat-abi=hard -mfpu=fpv4-sp-d16
     CFLAGS += -fno-common
     LDFLAGS += -nostdlib
@@ -29,7 +38,7 @@ LDFLAGS += $(CPUFLAGS) -T linker/MK64FX512.ld -Wl,--gc-sections -nostartfiles
 
 # Директории
 SRCDIR = src
-INCDIR = inc
+INCDIR = include
 BUILDDIR = build
 TARGET = $(BUILDDIR)/k64-blinky
 
@@ -38,16 +47,24 @@ SRCS = $(wildcard $(SRCDIR)/*.c)
 OBJS = $(SRCS:$(SRCDIR)/%.c=$(BUILDDIR)/%.o)
 
 # Правила
-.PHONY: all check test clean upload-packages install-lua-deps setup-gitea
+.PHONY: all check test clean upload-packages install-lua-deps setup-gitea ccache-stats
 
 all: $(BUILDDIR) $(TARGET).elf $(TARGET).hex $(TARGET).bin
 	@echo "Build complete with $(CC)!"
 	$(SIZE) $(TARGET).elf
 
+# Статистика ccache
+ccache-stats:
+ifdef CCACHE
+	ccache -s
+else
+	@echo "ccache not installed"
+endif
+
 # Запуск тестов в Renode
 test: all
 	@echo "Running tests in Renode..."
-	$(RENODE) --script test/k64_test.resc --console
+	$(RENODE) test/k64_test.resc --console
 
 # Статический анализ
 check:
@@ -57,12 +74,6 @@ check:
 	            --std=c11 \
 	            --suppress=missingIncludeSystem \
 	            --suppress=unusedFunction \
-	            --suppress=comparePointers \
-	            --suppress=constVariablePointer \
-	            --suppress=constParameterPointer \
-	            --suppress=unmatchedSuppression \
-	            --suppress=checkersReport \
-	            --inline-suppr \
 	            --error-exitcode=1 \
 	            -I$(INCDIR) \
 	            $(SRCDIR)/
@@ -101,3 +112,6 @@ $(TARGET).bin: $(TARGET).elf
 
 clean:
 	rm -rf $(BUILDDIR)
+ifdef CCACHE
+	ccache -C
+endif
