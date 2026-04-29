@@ -29,26 +29,27 @@ start
 echo "Waiting for UART output..."
 echo ""
 
+sleep 1.0
+$count = 1
 $line = ""
-$last_time = 0
 
-for $i in range(1,10) {
+$count = 1
+while $count <= 10 {
     sleep 1.0
     
     $data = sysbus.uart0 Data
     if $data != "" {
-        echo "UART0 output: $data"
+        echo "UART0: $data"
         $line = $data
-    } else {
-        echo "Second $i: waiting for data..."
     }
+    
+    $count = $count + 1
 }
 
 echo ""
 echo "--- Test Results ---"
 if $line != "" {
     echo "PASS: UART0 is transmitting data"
-    echo "Last output: $line"
 } else {
     echo "FAIL: No UART output detected"
 }
