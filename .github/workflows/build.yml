@@ -33,6 +33,15 @@ on:
           - '13.3.Rel1'
           - '14.2.Rel1'
           - '15.2.Rel1'
+      clang_version:
+        description: 'LLVM/Clang Version'
+        required: true
+        type: choice
+        default: '18.1.8'
+        options:
+          - '18.1.8'
+          - '19.1.0'
+          - '20.1.0'
 
 jobs:
   static-analysis:
@@ -56,16 +65,18 @@ jobs:
           mkdir -p /opt/cppcheck-packages
           cd /opt/cppcheck-packages
           sudo apt-get update -qq
-          sudo apt-get install -y -qq --download-only cppcheck
+          sudo apt-get install -y -qq --no-install-recommends --download-only cppcheck
           cp /var/cache/apt/archives/*.deb /opt/cppcheck-packages/
 
       - name: Install cppcheck from cached packages
         run: |
-          if [ -d "/opt/cppcheck-packages" ] && [ -n "$(ls -A /opt/cppcheck-packages/*.deb 2>/dev/null)" ]; then
+          if command -v cppcheck &> /dev/null; then
+            echo "cppcheck already installed"
+          elif [ -d "/opt/cppcheck-packages" ] && [ -n "$(ls -A /opt/cppcheck-packages/*.deb 2>/dev/null)" ]; then
             sudo dpkg -i --force-depends /opt/cppcheck-packages/*.deb || true
-            sudo apt-get install -f -y -qq
+            sudo apt-get install -f -y -qq --no-install-recommends
           else
-            sudo apt-get update -qq && sudo apt-get install -y -qq cppcheck
+            sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends cppcheck
           fi
 
       - name: Run cppcheck
@@ -117,11 +128,13 @@ jobs:
 
       - name: Install ccache from cached packages
         run: |
-          if [ -d "/opt/ccache-packages" ] && [ -n "$(ls -A /opt/ccache-packages/*.deb 2>/dev/null)" ]; then
+          if command -v ccache &> /dev/null; then
+            echo "ccache already installed"
+          elif [ -d "/opt/ccache-packages" ] && [ -n "$(ls -A /opt/ccache-packages/*.deb 2>/dev/null)" ]; then
             sudo dpkg -i --force-depends /opt/ccache-packages/*.deb || true
-            sudo apt-get install -f -y -qq
+            sudo apt-get install -f -y -qq --no-install-recommends
           else
-            sudo apt-get update -qq && sudo apt-get install -y -qq --download-only ccache
+            sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends --download-only ccache
             mkdir -p /opt/ccache-packages
             cp /var/cache/apt/archives/*.deb /opt/ccache-packages/
             sudo dpkg -i /opt/ccache-packages/*.deb
@@ -164,59 +177,63 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Cache LLVM/Clang deb packages
+      - name: Set Clang variables
+        id: clang-vars
+        run: |
+          CLANG_VERSION="${{ inputs.clang_version }}"
+          MAJOR_VERSION=$(echo "${CLANG_VERSION}" | cut -d'.' -f1)
+
+          if [ "${MAJOR_VERSION}" -ge 19 ]; then
+            # LLVM 19+: формат LLVM-{version}-Linux-X64.tar.xz
+            CLANG_PACKAGE="LLVM-${CLANG_VERSION}-Linux-X64"
+            CLANG_ARCHIVE="${CLANG_PACKAGE}.tar.xz"
+            CLANG_URL="https://github.com/llvm/llvm-project/releases/download/llvmorg-${CLANG_VERSION}/${CLANG_ARCHIVE}"
+          else
+            # LLVM 18 и ниже: формат clang+llvm-{version}-x86_64-linux-gnu-ubuntu-18.04.tar.xz
+            CLANG_PACKAGE="clang+llvm-${CLANG_VERSION}-x86_64-linux-gnu-ubuntu-18.04"
+            CLANG_ARCHIVE="${CLANG_PACKAGE}.tar.xz"
+            CLANG_URL="https://github.com/llvm/llvm-project/releases/download/llvmorg-${CLANG_VERSION}/${CLANG_ARCHIVE}"
+          fi
+
+          echo "clang_version=${CLANG_VERSION}" >> $GITHUB_OUTPUT
+          echo "clang_package=${CLANG_PACKAGE}" >> $GITHUB_OUTPUT
+          echo "clang_archive=${CLANG_ARCHIVE}" >> $GITHUB_OUTPUT
+          echo "clang_url=${CLANG_URL}" >> $GITHUB_OUTPUT
+          echo "clang_major=${MAJOR_VERSION}" >> $GITHUB_OUTPUT
+          echo "Clang ${CLANG_VERSION} (major ${MAJOR_VERSION}): ${CLANG_URL}"
+
+      - name: Cache LLVM/Clang pre-built
         id: cache-clang
         uses: actions/cache@v4
         with:
-          path: /opt/clang-packages
-          key: clang-packages-18-${{ runner.os }}-${{ runner.arch }}
+          path: /opt/${{ steps.clang-vars.outputs.clang_package }}
+          key: clang-prebuilt-${{ steps.clang-vars.outputs.clang_version }}-${{ runner.os }}-${{ runner.arch }}
 
-      - name: Download LLVM/Clang and dependencies
+      - name: Download LLVM/Clang pre-built
         if: steps.cache-clang.outputs.cache-hit != 'true'
         run: |
-          mkdir -p /opt/clang-packages
-          cd /opt/clang-packages
-          wget -q https://apt.llvm.org/llvm.sh
-          chmod +x llvm.sh
-          sudo ./llvm.sh 18
-          rm llvm.sh
-          cp /var/cache/apt/archives/*.deb /opt/clang-packages/
+          echo "Downloading ${{ steps.clang-vars.outputs.clang_url }}"
+          wget -q "${{ steps.clang-vars.outputs.clang_url }}" -O /tmp/clang.tar.xz
+          sudo tar -xf /tmp/clang.tar.xz -C /opt
+          rm /tmp/clang.tar.xz
+          echo "Clang extracted to /opt/${{ steps.clang-vars.outputs.clang_package }}"
 
-      - name: Install LLVM/Clang from cached packages
+      - name: Set Clang PATH
         run: |
-          if [ -d "/opt/clang-packages" ] && [ -n "$(ls -A /opt/clang-packages/*.deb 2>/dev/null)" ]; then
-            sudo dpkg -i --force-depends /opt/clang-packages/*.deb || true
-            sudo apt-get install -f -y -qq
+          CLANG_DIR="/opt/${{ steps.clang-vars.outputs.clang_package }}"
+          echo "$CLANG_DIR/bin" >> $GITHUB_PATH
+          echo "CLANG_DIR=$CLANG_DIR" >> $GITHUB_ENV
+          echo "Clang PATH set to $CLANG_DIR/bin"
+
+      - name: Verify Clang
+        run: |
+          MAJOR="${{ steps.clang-vars.outputs.clang_major }}"
+          if clang --version 2>/dev/null; then
+            echo "clang works"
+          elif clang-${MAJOR} --version 2>/dev/null; then
+            echo "clang-${MAJOR} works"
           else
-            wget -q https://apt.llvm.org/llvm.sh
-            chmod +x llvm.sh
-            sudo ./llvm.sh 18
-            rm llvm.sh
-          fi
-
-      - name: Cache libstdc++-armel-cross deb packages
-        id: cache-libstdcpp
-        uses: actions/cache@v4
-        with:
-          path: /opt/libstdcpp-packages
-          key: libstdcpp-armel-packages-${{ runner.os }}-${{ runner.arch }}
-
-      - name: Download libstdc++-armel-cross and dependencies
-        if: steps.cache-libstdcpp.outputs.cache-hit != 'true'
-        run: |
-          mkdir -p /opt/libstdcpp-packages
-          cd /opt/libstdcpp-packages
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq --download-only libstdc++-12-dev-armel-cross
-          cp /var/cache/apt/archives/*.deb /opt/libstdcpp-packages/
-
-      - name: Install libstdc++-armel-cross from cached packages
-        run: |
-          if [ -d "/opt/libstdcpp-packages" ] && [ -n "$(ls -A /opt/libstdcpp-packages/*.deb 2>/dev/null)" ]; then
-            sudo dpkg -i --force-depends /opt/libstdcpp-packages/*.deb || true
-            sudo apt-get install -f -y -qq
-          else
-            sudo apt-get update -qq && sudo apt-get install -y -qq libstdc++-12-dev-armel-cross
+            ls -la $CLANG_DIR/bin/ | grep -E "(clang|llvm)"
           fi
 
       - name: Cache ccache deb packages
@@ -228,11 +245,13 @@ jobs:
 
       - name: Install ccache from cached packages
         run: |
-          if [ -d "/opt/ccache-packages" ] && [ -n "$(ls -A /opt/ccache-packages/*.deb 2>/dev/null)" ]; then
+          if command -v ccache &> /dev/null; then
+            echo "ccache already installed"
+          elif [ -d "/opt/ccache-packages" ] && [ -n "$(ls -A /opt/ccache-packages/*.deb 2>/dev/null)" ]; then
             sudo dpkg -i --force-depends /opt/ccache-packages/*.deb || true
-            sudo apt-get install -f -y -qq
+            sudo apt-get install -f -y -qq --no-install-recommends
           else
-            sudo apt-get update -qq && sudo apt-get install -y -qq --download-only ccache
+            sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends --download-only ccache
             mkdir -p /opt/ccache-packages
             cp /var/cache/apt/archives/*.deb /opt/ccache-packages/
             sudo dpkg -i /opt/ccache-packages/*.deb
@@ -242,15 +261,16 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.ccache-clang
-          key: ccache-obj-clang-18-${{ runner.os }}-${{ hashFiles('src/**') }}
+          key: ccache-obj-clang-${{ steps.clang-vars.outputs.clang_version }}-${{ runner.os }}-${{ hashFiles('src/**') }}
           restore-keys: |
-            ccache-obj-clang-18-${{ runner.os }}-
+            ccache-obj-clang-${{ steps.clang-vars.outputs.clang_version }}-${{ runner.os }}-
 
       - name: Build with Clang (ccache)
         run: |
+          export PATH="$CLANG_DIR/bin:$PATH"
           export CCACHE_DIR=$HOME/.ccache-clang
           ccache -z > /dev/null
-          make -j$(nproc) CC=clang-18 USE_CLANG=1
+          make -j$(nproc) CC="$(ls $CLANG_DIR/bin/clang-* | head -1)" USE_CLANG=1
           echo "=== ccache statistics ==="
           ccache -s
 
