@@ -1,4 +1,3 @@
-
 cpu: CPU.CortexM @ sysbus
     cpuType: "cortex-m4f"
     nvic: nvic
@@ -26,17 +25,17 @@ uart1: UART.K6xF_UART @ sysbus 0x4006B000
 uart3: UART.K6xF_UART @ sysbus 0x4006D000
     IRQ -> nvic@35
 
-gpioa: GPIOPort.K64F_GPIOPort @ sysbus 0x400FF000
+gpioa: GPIOPort @ sysbus 0x400FF000
     IRQ -> nvic@59
 
-gpiob: GPIOPort.K64F_GPIOPort @ sysbus 0x400FF040
+gpiob: GPIOPort @ sysbus 0x400FF040
     IRQ -> nvic@60
 
-gpioc: GPIOPort.K64F_GPIOPort @ sysbus 0x400FF080
+gpioc: GPIOPort @ sysbus 0x400FF080
     IRQ -> nvic@61
 
-gpiod: GPIOPort.K64F_GPIOPort @ sysbus 0x400FF0C0
+gpiod: GPIOPort @ sysbus 0x400FF0C0
     IRQ -> nvic@62
 
-gpioe: GPIOPort.K64F_GPIOPort @ sysbus 0x400FF100
+gpioe: GPIOPort @ sysbus 0x400FF100
     IRQ -> nvic@63
