@@ -1,5 +1,9 @@
 $bin?=@build/k64-blinky.elf
 
+echo "========================================="
+echo "  K64 Blinky LED Test"
+echo "========================================="
+
 echo "Loading ELF file: $bin"
 
 using sysbus
@@ -10,42 +14,110 @@ mach create "k64-blinky-test"
 echo "Loading platform description..."
 machine LoadPlatformDescription @platforms/cpus/nxp-k6xf.repl
 
-echo "Available UARTs and peripherals:"
+echo ""
+echo "Available peripherals:"
 peripherals
 
+echo ""
+echo "Setting up UART analyzer..."
 showAnalyzer sysbus.uart0
 
+echo ""
 echo "Loading firmware..."
 sysbus LoadELF $bin
+
+echo ""
+echo "========================================="
+echo "  Starting K64 Blinky LED Test"
+echo "========================================="
 
 echo "Starting emulation..."
 start
 
+echo "Waiting for initialization..."
 sleep 0.5
 
-echo "Checking GPIO configuration..."
-$pddr = sysbus.gpioc.PDDR
-echo "PDDR = $pddr"
+echo ""
+echo "--- GPIO Configuration Check ---"
 
-if $pddr != 0x0 {
-    echo "PASS: GPIO initialized (PDDR = $pddr)"
+$pddr = sysbus.gpioc.PDDR
+echo "PDDR register: $pddr"
+
+if $pddr != 0 {
+    echo "PASS: GPIO port C initialized"
+    echo "  PDDR value: $pddr"
+    
+    $led_mask = 0x00200000
+    if $pddr & $led_mask {
+        echo "PASS: PTC21 configured as output"
+    } else {
+        echo "FAIL: PTC21 not configured as output"
+    }
 } else {
-    echo "FAIL: GPIO not initialized (PDDR = $pddr)"
+    echo "FAIL: GPIO port C not initialized (PDDR = 0)"
 }
 
+echo ""
+echo "--- LED Blink Test ---"
 echo "Monitoring LED state for 5 seconds..."
-$prev = 0
+echo ""
+
+$prev = -1
+$toggles = 0
+
 for $i in range(1,6) {
     sleep 1.0
     $pdor = sysbus.gpioc.PDOR
     $led = $pdor & 0x00200000
-    echo "Second $i: PDOR = $pdor, LED = $led"
     
-    if $led != $prev {
-        echo "  LED CHANGED!"
+    if $led == 0 {
+        $led_state = "OFF"
+    } else {
+        $led_state = "ON "
+    }
+    
+    echo "Second $i: PDOR=$pdor, LED=$led ($led_state)"
+    
+    if $prev != -1 {
+        if $led != $prev {
+            echo "  -> LED TOGGLED!"
+            $toggles = $toggles + 1
+        }
     }
     $prev = $led
 }
 
-echo "=== Test completed ==="
+echo ""
+echo "--- Test Results ---"
+echo "LED toggles detected: $toggles"
+
+if $toggles >= 2 {
+    echo "PASS: LED is blinking correctly"
+} else {
+    if $toggles == 0 {
+        echo "FAIL: LED did not toggle"
+    } else {
+        echo "WARNING: LED toggled only $toggles time(s)"
+    }
+}
+
+echo ""
+echo "--- GPIO Final State ---"
+$pdor = sysbus.gpioc.PDOR
+$pddr = sysbus.gpioc.PDDR
+echo "Final PDDR: $pddr"
+echo "Final PDOR: $pdor"
+echo "Final LED state: "
+
+$led_final = $pdor & 0x00200000
+if $led_final == 0 {
+    echo "  OFF"
+} else {
+    echo "  ON"
+}
+
+echo ""
+echo "========================================="
+echo "  Test completed"
+echo "========================================="
 stop
