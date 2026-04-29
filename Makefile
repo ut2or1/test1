@@ -38,7 +38,7 @@ LDFLAGS += $(CPUFLAGS) -T linker/MK64FX512.ld -Wl,--gc-sections -nostartfiles
 
 # Директории
 SRCDIR = src
-INCDIR = include
+INCDIR = inc
 BUILDDIR = build
 TARGET = $(BUILDDIR)/k64-blinky
 
