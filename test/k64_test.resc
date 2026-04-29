@@ -23,17 +23,15 @@ echo "Loading firmware..."
 sysbus LoadELF $bin
 
 echo ""
-echo "Starting emulation..."
+echo "Starting emulation and waiting 5 seconds..."
 start
 
-echo "Waiting 5 seconds for UART output..."
 sleep 5.0
 
 echo ""
 echo "--- Test Results ---"
-echo "PASS: Machine started and ran for 5 seconds"
-echo "Check UART0 analyzer output above for messages"
+echo "PASS: Machine executed for 5 seconds"
+echo "Check UART0 analyzer output above for transmitted data"
 
 echo ""
 echo "=== Test completed ==="
-stop
