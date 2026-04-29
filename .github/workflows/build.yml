@@ -62,7 +62,8 @@ jobs:
       - name: Install cppcheck from cached packages
         run: |
           if [ -d "/opt/cppcheck-packages" ] && [ -n "$(ls -A /opt/cppcheck-packages/*.deb 2>/dev/null)" ]; then
-            sudo dpkg -i /opt/cppcheck-packages/*.deb
+            sudo dpkg -i --force-depends /opt/cppcheck-packages/*.deb || true
+            sudo apt-get install -f -y -qq
           else
             sudo apt-get update -qq && sudo apt-get install -y -qq cppcheck
           fi
@@ -117,7 +118,8 @@ jobs:
       - name: Install ccache from cached packages
         run: |
           if [ -d "/opt/ccache-packages" ] && [ -n "$(ls -A /opt/ccache-packages/*.deb 2>/dev/null)" ]; then
-            sudo dpkg -i /opt/ccache-packages/*.deb
+            sudo dpkg -i --force-depends /opt/ccache-packages/*.deb || true
+            sudo apt-get install -f -y -qq
           else
             sudo apt-get update -qq && sudo apt-get install -y -qq --download-only ccache
             mkdir -p /opt/ccache-packages
@@ -183,7 +185,8 @@ jobs:
       - name: Install LLVM/Clang from cached packages
         run: |
           if [ -d "/opt/clang-packages" ] && [ -n "$(ls -A /opt/clang-packages/*.deb 2>/dev/null)" ]; then
-            sudo dpkg -i /opt/clang-packages/*.deb
+            sudo dpkg -i --force-depends /opt/clang-packages/*.deb || true
+            sudo apt-get install -f -y -qq
           else
             wget -q https://apt.llvm.org/llvm.sh
             chmod +x llvm.sh
@@ -210,7 +213,8 @@ jobs:
       - name: Install libstdc++-armel-cross from cached packages
         run: |
           if [ -d "/opt/libstdcpp-packages" ] && [ -n "$(ls -A /opt/libstdcpp-packages/*.deb 2>/dev/null)" ]; then
-            sudo dpkg -i /opt/libstdcpp-packages/*.deb
+            sudo dpkg -i --force-depends /opt/libstdcpp-packages/*.deb || true
+            sudo apt-get install -f -y -qq
           else
             sudo apt-get update -qq && sudo apt-get install -y -qq libstdc++-12-dev-armel-cross
           fi
@@ -225,7 +229,8 @@ jobs:
       - name: Install ccache from cached packages
         run: |
           if [ -d "/opt/ccache-packages" ] && [ -n "$(ls -A /opt/ccache-packages/*.deb 2>/dev/null)" ]; then
-            sudo dpkg -i /opt/ccache-packages/*.deb
+            sudo dpkg -i --force-depends /opt/ccache-packages/*.deb || true
+            sudo apt-get install -f -y -qq
           else
             sudo apt-get update -qq && sudo apt-get install -y -qq --download-only ccache
             mkdir -p /opt/ccache-packages
