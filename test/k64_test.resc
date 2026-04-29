@@ -8,16 +8,22 @@ echo "Loading ELF file: $bin"
 
 using sysbus
 
+# Включаем логирование доступа к периферии для отладки (опционально)
+# sysbus LogPeripheralAccess true
+
 echo "Creating machine..."
 mach create "k64-blinky-test"
 
 echo "Loading platform..."
 machine LoadPlatformDescription @platforms/cpus/nxp-k6xf.repl
 
-echo "Creating GPIO port C..."
-$gpioc = GPIOPort
-$gpioc Name "gpioc"
-sysbus Register $gpioc 0x400FF080 0x80
+# ❌ УДАЛЕНО: Ручное создание GPIO-порта (не поддерживается в Monitor)
+# $gpioc = GPIOPort
+# $gpioc Name "gpioc"
+# sysbus Register $gpioc 0x400FF080 0x80
+
+# ✅ GPIO-контроллеры уже загружены через SVD-файл внутри nxp-k6xf.repl
+# Все регистры доступны по физическим адресам напрямую
 
 echo ""
 echo "Loading firmware..."
@@ -32,11 +38,13 @@ sleep 1.0
 echo ""
 echo "--- GPIO Configuration Check ---"
 
-sysbus ReadDoubleWord 0x400FF154 $pddr
-echo "PDDR register: $pddr"
+# Чтение регистра PDDR (Port Data Direction Register) GPIOC
+# Адрес: 0x400FF000 (база GPIOC) + 0x154 (смещение PDDR) = 0x400FF154
+sysbus ReadDoubleWord 0x400FF154 pddr_value
+echo "PDDR register: 0x$pddr_value"
 
-if $pddr != 0 {
-    echo "PASS: GPIO port C initialized (PDDR = $pddr)"
+if $pddr_value != 0 {
+    echo "PASS: GPIO port C initialized (PDDR = 0x$pddr_value)"
 } else {
     echo "FAIL: GPIO port C not initialized (PDDR = 0)"
 }
@@ -45,15 +53,19 @@ echo ""
 echo "--- LED Blink Test ---"
 echo "Monitoring LED state for 5 seconds..."
 echo ""
+echo "LED connected to GPIOC pin 21 (bit mask: 0x00200000)"
+echo ""
 
 $toggles = 0
 $prev = -1
 
-for $i in range(1,6) {
+for $i in range(1, 6) {
     sleep 1.0
     
-    sysbus ReadDoubleWord 0x400FF134 $pdor
-    $led = $pdor & 0x00200000
+    # Чтение регистра PDOR (Port Data Output Register) GPIOC
+    # Адрес: 0x400FF000 + 0x134 = 0x400FF134
+    sysbus ReadDoubleWord 0x400FF134 pdor_value
+    $led = $pdor_value & 0x00200000
     
     if $led == 0 {
         echo "Second $i: LED = OFF"
@@ -72,14 +84,26 @@ for $i in range(1,6) {
 
 echo ""
 echo "--- Test Results ---"
-echo "LED toggles: $toggles"
+echo "LED toggles detected: $toggles"
 
 if $toggles >= 2 {
     echo "PASS: LED is blinking correctly"
+    $result = "SUCCESS"
 } else {
-    echo "FAIL: LED did not toggle enough times"
+    echo "FAIL: LED did not toggle enough times (expected >= 2, got $toggles)"
+    $result = "FAILURE"
 }
 
 echo ""
-echo "=== Test completed ==="
+echo "=== Test completed: $result ==="
+
+# Останавливаем эмуляцию
 stop
+
+# Вывод финальной статистики (опционально)
+echo ""
+echo "Final register states:"
+sysbus ReadDoubleWord 0x400FF154 final_pddr
+sysbus ReadDoubleWord 0x400FF134 final_pdor
+echo "  PDDR (direction): 0x$final_pddr"
+echo "  PDOR (output):    0x$final_pdor"
