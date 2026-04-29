@@ -1,0 +1,50 @@
+# FRDM-K64F platform description with GPIO ports
+
+using sysbus
+
+# CPU
+cpu: CPU.CortexM @ sysbus
+    cpuType: "cortex-m4f"
+    nvic: nvic
+
+# Memories
+sram_l: Memory.MappedMemory @ sysbus 0x1FFF0000
+    size: 0x00040000
+
+flash: Memory.MappedMemory @ sysbus 0x00000000
+    size: 0x00100000
+
+# NVIC
+nvic: IRQControllers.NVIC @ sysbus 0xE000E000
+    systickFrequency: 120000000
+    IRQ -> cpu@0
+
+# MCG and SIM (needed for clock setup in your main.c)
+mcg: Miscellaneous.K6xF_MCG @ sysbus 0x40064000
+sim: Miscellaneous.K6xF_SIM @ sysbus 0x40047000
+
+# UARTs
+uart0: UART.K6xF_UART @ sysbus 0x4006A000
+    IRQ -> nvic@31
+
+uart1: UART.K6xF_UART @ sysbus 0x4006B000
+    IRQ -> nvic@33
+
+uart3: UART.K6xF_UART @ sysbus 0x4006D000
+    IRQ -> nvic@35
+
+# GPIO Ports - ВОТ ЧТО НУЖНО ДЛЯ ТЕСТА!
+gpioa: GPIOPort.K64F_GPIOPort @ sysbus 0x400FF000
+    IRQ -> nvic@59
+
+gpiob: GPIOPort.K64F_GPIOPort @ sysbus 0x400FF040
+    IRQ -> nvic@60
+
+gpioc: GPIOPort.K64F_GPIOPort @ sysbus 0x400FF080
+    IRQ -> nvic@61
+
+gpiod: GPIOPort.K64F_GPIOPort @ sysbus 0x400FF0C0
+    IRQ -> nvic@62
+
+gpioe: GPIOPort.K64F_GPIOPort @ sysbus 0x400FF100
+    IRQ -> nvic@63
