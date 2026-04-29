@@ -14,8 +14,10 @@ mach create "k64-blinky-test"
 echo "Loading platform..."
 machine LoadPlatformDescription @platforms/cpus/nxp-k6xf.repl
 
-echo "Registering GPIO port C..."
-sysbus Register GPIOPort @ 0x400FF080 0x80 gpioc
+echo "Creating GPIO port C..."
+$gpioc = GPIOPort
+$gpioc Name "gpioc"
+sysbus Register $gpioc 0x400FF080 0x80
 
 echo ""
 echo "Loading firmware..."
