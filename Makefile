@@ -18,12 +18,14 @@ GITEA_ORG ?= actions
 
 # Флаги зависят от компилятора
 ifeq ($(USE_CLANG),1)
-    CC = clang-18
+    # Отменяем предыдущее обертывание
+    ifdef CCACHE
+        CC = $(CCACHE) clang-18
+    else
+        CC = clang-18
+    endif
     OBJCOPY = llvm-objcopy-18
     SIZE = llvm-size-18
-    ifdef CCACHE
-        CC := $(CCACHE) $(CC)
-    endif
     CPUFLAGS = --target=arm-none-eabi -mcpu=cortex-m4 -mfloat-abi=hard -mfpu=fpv4-sp-d16
     CFLAGS += -fno-common
     LDFLAGS += -nostdlib
@@ -47,13 +49,12 @@ SRCS = $(wildcard $(SRCDIR)/*.c)
 OBJS = $(SRCS:$(SRCDIR)/%.c=$(BUILDDIR)/%.o)
 
 # Правила
-.PHONY: all check test clean upload-packages install-lua-deps setup-gitea ccache-stats
+.PHONY: all check test clean ccache-stats
 
 all: $(BUILDDIR) $(TARGET).elf $(TARGET).hex $(TARGET).bin
 	@echo "Build complete with $(CC)!"
 	$(SIZE) $(TARGET).elf
 
-# Статистика ccache
 ccache-stats:
 ifdef CCACHE
 	ccache -s
@@ -61,12 +62,10 @@ else
 	@echo "ccache not installed"
 endif
 
-# Запуск тестов в Renode
 test: all
 	@echo "Running tests in Renode..."
 	$(RENODE) test/k64_test.resc --console
 
-# Статический анализ
 check:
 	@echo "Running cppcheck..."
 	$(CPPCHECK) --enable=all \
@@ -85,22 +84,6 @@ check:
 	            -I$(INCDIR) \
 	            $(SRCDIR)/
 	@echo "Static analysis passed!"
-
-# Загрузка пакетов в Gitea
-upload-packages:
-	@echo "Uploading packages to Gitea..."
-	PACKAGES_USER=$(PACKAGES_USER) \
-	PACKAGES_TOKEN=$(PACKAGES_TOKEN) \
-	GITEA_SERVER=$(GITEA_SERVER) \
-	GITEA_ORG=$(GITEA_ORG) \
-	$(LUAJIT) scripts/upload_packages.lua
-
-# Установка зависимостей для скриптов
-install-lua-deps:
-	$(LUAJIT) scripts/install_deps.lua
-
-# Полный цикл настройки Gitea
-setup-gitea: install-lua-deps upload-packages
 
 $(BUILDDIR):
 	mkdir -p $(BUILDDIR)
