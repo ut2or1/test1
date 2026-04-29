@@ -95,36 +95,27 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Cache ARM GCC Toolchain (7z compressed)
+      - name: Cache ARM GCC Toolchain
         id: cache-gcc
         uses: actions/cache@v4
         with:
-          path: /tmp/arm-gnu-toolchain.7z
-          key: arm-gcc-${{ inputs.toolchain_version }}-${{ runner.os }}-v2
+          path: /tmp/gcc.tar.xz
+          key: arm-gcc-${{ inputs.toolchain_version }}-${{ runner.os }}
 
-      - name: Download and compress ARM GCC
+      - name: Download ARM GCC
         if: steps.cache-gcc.outputs.cache-hit != 'true'
         run: |
           VERSION="${{ inputs.toolchain_version }}"
           wget -q "https://developer.arm.com/-/media/Files/downloads/gnu/${VERSION}/binrel/arm-gnu-toolchain-${VERSION}-x86_64-arm-none-eabi.tar.xz" -O /tmp/gcc.tar.xz
-          tar -xf /tmp/gcc.tar.xz -C /tmp
-          rm /tmp/gcc.tar.xz
-          GCC_DIR=$(ls -d /tmp/arm-gnu-toolchain-*)
-          sudo apt-get update -qq && sudo apt-get install -y -qq p7zip-full
-          7z a -mx=9 -mmt=on /tmp/arm-gnu-toolchain.7z $GCC_DIR
-          rm -rf $GCC_DIR
-          echo "GCC_DIR=$GCC_DIR" >> $GITHUB_ENV
-          echo "Compressed size:"
-          ls -lh /tmp/arm-gnu-toolchain.7z
+          echo "Downloaded size:"
+          ls -lh /tmp/gcc.tar.xz
 
-      - name: Extract GCC from 7z cache
-        if: steps.cache-gcc.outputs.cache-hit == 'true'
+      - name: Extract ARM GCC
         run: |
-          sudo apt-get update -qq && sudo apt-get install -y -qq p7zip-full
-          7z x /tmp/arm-gnu-toolchain.7z -o/tmp/
+          tar -xf /tmp/gcc.tar.xz -C /tmp
           GCC_DIR=$(ls -d /tmp/arm-gnu-toolchain-*)
           echo "GCC_DIR=$GCC_DIR" >> $GITHUB_ENV
-          echo "GCC_DIR from cache: $GCC_DIR"
+          echo "GCC extracted to: $GCC_DIR"
 
       - name: Cache ccache deb packages
         id: cache-ccache
@@ -199,33 +190,24 @@ jobs:
           echo "clang_url=${CLANG_URL}" >> $GITHUB_OUTPUT
           echo "Clang ${CLANG_VERSION}: ${CLANG_URL}"
 
-      - name: Cache LLVM/Clang pre-built (7z compressed)
+      - name: Cache LLVM/Clang pre-built
         id: cache-clang
         uses: actions/cache@v4
         with:
-          path: /tmp/${{ steps.clang-vars.outputs.clang_package }}.7z
-          key: clang-prebuilt-${{ steps.clang-vars.outputs.clang_version }}-${{ runner.os }}-${{ runner.arch }}-v2
+          path: /tmp/clang.tar.xz
+          key: clang-${{ steps.clang-vars.outputs.clang_version }}-${{ runner.os }}-${{ runner.arch }}
 
-      - name: Download and compress LLVM/Clang
+      - name: Download LLVM/Clang
         if: steps.cache-clang.outputs.cache-hit != 'true'
         run: |
           echo "Downloading ${{ steps.clang-vars.outputs.clang_url }}"
           wget -q "${{ steps.clang-vars.outputs.clang_url }}" -O /tmp/clang.tar.xz
-          tar -xf /tmp/clang.tar.xz -C /tmp
-          rm /tmp/clang.tar.xz
-          echo "Compressing with 7z..."
-          sudo apt-get update -qq && sudo apt-get install -y -qq p7zip-full
-          7z a -mx=9 -mmt=on /tmp/${{ steps.clang-vars.outputs.clang_package }}.7z /tmp/${{ steps.clang-vars.outputs.clang_package }}
-          rm -rf /tmp/${{ steps.clang-vars.outputs.clang_package }}
-          echo "Compressed size:"
-          ls -lh /tmp/${{ steps.clang-vars.outputs.clang_package }}.7z
+          echo "Downloaded size:"
+          ls -lh /tmp/clang.tar.xz
 
-      - name: Extract Clang from 7z cache
-        if: steps.cache-clang.outputs.cache-hit == 'true'
+      - name: Extract Clang
         run: |
-          echo "Extracting from 7z cache..."
-          sudo apt-get update -qq && sudo apt-get install -y -qq p7zip-full
-          7z x /tmp/${{ steps.clang-vars.outputs.clang_package }}.7z -o/tmp/
+          tar -xf /tmp/clang.tar.xz -C /tmp
           echo "Extraction complete!"
           ls -la /tmp/${{ steps.clang-vars.outputs.clang_package }}/bin/ | head -5
 
@@ -300,30 +282,23 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Cache Renode (7z compressed)
+      - name: Cache Renode
         id: cache-renode
         uses: actions/cache@v4
         with:
-          path: /tmp/renode_1.16.1_portable.7z
-          key: renode-1.16.1-${{ runner.os }}-v2
+          path: /tmp/renode.tar.gz
+          key: renode-1.16.1-${{ runner.os }}
 
-      - name: Download and compress Renode
+      - name: Download Renode portable
         if: steps.cache-renode.outputs.cache-hit != 'true'
         run: |
-          wget -q https://github.com/renode/renode/releases/download/v1.16.1/renode-1.16.1.linux-portable.tar.gz
-          tar -xzf renode-1.16.1.linux-portable.tar.gz -C /tmp
-          rm renode-1.16.1.linux-portable.tar.gz
-          sudo apt-get update -qq && sudo apt-get install -y -qq p7zip-full
-          7z a -mx=9 -mmt=on /tmp/renode_1.16.1_portable.7z /tmp/renode_1.16.1_portable
-          rm -rf /tmp/renode_1.16.1_portable
-          echo "Compressed size:"
-          ls -lh /tmp/renode_1.16.1_portable.7z
+          wget -q https://github.com/renode/renode/releases/download/v1.16.1/renode-1.16.1.linux-portable.tar.gz -O /tmp/renode.tar.gz
+          echo "Downloaded size:"
+          ls -lh /tmp/renode.tar.gz
 
-      - name: Extract Renode from 7z cache
-        if: steps.cache-renode.outputs.cache-hit == 'true'
+      - name: Extract Renode
         run: |
-          sudo apt-get update -qq && sudo apt-get install -y -qq p7zip-full
-          7z x /tmp/renode_1.16.1_portable.7z -o/tmp/
+          tar -xzf /tmp/renode.tar.gz -C /tmp
           echo "Extraction complete!"
 
       - name: Add Renode to PATH
@@ -349,6 +324,4 @@ jobs:
           path: build/
 
       - name: Run Renode tests
-        run: |
-          renode --plain --console test/k64_test.resc
-          echo "EXIT CODE: $?"
+        run: renode test/k64_test.resc --console
