@@ -13,7 +13,7 @@ machine LoadPlatformDescription @platforms/cpus/nxp-k6xf.repl
 echo "Available UARTs and peripherals:"
 peripherals
 
-showAnalyzer sysbus.uart3
+showAnalyzer sysbus.uart0
 
 echo "Loading firmware..."
 sysbus LoadELF $bin
