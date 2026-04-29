@@ -95,14 +95,14 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Cache ARM GCC Toolchain
+      - name: Cache ARM GCC Toolchain (7z compressed)
         id: cache-gcc
         uses: actions/cache@v4
         with:
-          path: /opt/arm-gnu-toolchain-*
-          key: arm-gcc-${{ inputs.toolchain_version }}-${{ runner.os }}
+          path: /opt/arm-gnu-toolchain.7z
+          key: arm-gcc-${{ inputs.toolchain_version }}-${{ runner.os }}-v2
 
-      - name: Download and extract ARM GCC
+      - name: Download and compress ARM GCC
         if: steps.cache-gcc.outputs.cache-hit != 'true'
         run: |
           VERSION="${{ inputs.toolchain_version }}"
@@ -110,12 +110,18 @@ jobs:
           sudo tar -xf /tmp/gcc.tar.xz -C /opt
           rm /tmp/gcc.tar.xz
           GCC_DIR=$(ls -d /opt/arm-gnu-toolchain-*)
+          sudo apt-get update -qq && sudo apt-get install -y -qq p7zip-full
+          sudo 7z a -mx=9 -mmt=on /opt/arm-gnu-toolchain.7z $GCC_DIR
+          sudo rm -rf $GCC_DIR
           echo "GCC_DIR=$GCC_DIR" >> $GITHUB_ENV
-          echo "GCC found at: $GCC_DIR"
+          echo "Compressed size:"
+          ls -lh /opt/arm-gnu-toolchain.7z
 
-      - name: Set GCC_DIR from cache
+      - name: Extract GCC from 7z cache
         if: steps.cache-gcc.outputs.cache-hit == 'true'
         run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq p7zip-full
+          sudo 7z x /opt/arm-gnu-toolchain.7z -o/opt/
           GCC_DIR=$(ls -d /opt/arm-gnu-toolchain-*)
           echo "GCC_DIR=$GCC_DIR" >> $GITHUB_ENV
           echo "GCC_DIR from cache: $GCC_DIR"
@@ -192,21 +198,35 @@ jobs:
           echo "clang_url=${CLANG_URL}" >> $GITHUB_OUTPUT
           echo "Clang ${CLANG_VERSION}: ${CLANG_URL}"
 
-      - name: Cache LLVM/Clang pre-built
+      - name: Cache LLVM/Clang pre-built (7z compressed)
         id: cache-clang
         uses: actions/cache@v4
         with:
-          path: /opt/${{ steps.clang-vars.outputs.clang_package }}
-          key: clang-prebuilt-${{ steps.clang-vars.outputs.clang_version }}-${{ runner.os }}-${{ runner.arch }}
+          path: /opt/${{ steps.clang-vars.outputs.clang_package }}.7z
+          key: clang-prebuilt-${{ steps.clang-vars.outputs.clang_version }}-${{ runner.os }}-${{ runner.arch }}-v2
 
-      - name: Download LLVM/Clang pre-built
+      - name: Download and compress LLVM/Clang
         if: steps.cache-clang.outputs.cache-hit != 'true'
         run: |
           echo "Downloading ${{ steps.clang-vars.outputs.clang_url }}"
           wget -q "${{ steps.clang-vars.outputs.clang_url }}" -O /tmp/clang.tar.xz
           sudo tar -xf /tmp/clang.tar.xz -C /opt
           rm /tmp/clang.tar.xz
-          echo "Clang extracted to /opt/${{ steps.clang-vars.outputs.clang_package }}"
+          echo "Compressing with 7z..."
+          sudo apt-get update -qq && sudo apt-get install -y -qq p7zip-full
+          sudo 7z a -mx=9 -mmt=on /opt/${{ steps.clang-vars.outputs.clang_package }}.7z /opt/${{ steps.clang-vars.outputs.clang_package }}
+          sudo rm -rf /opt/${{ steps.clang-vars.outputs.clang_package }}
+          echo "Compressed size:"
+          ls -lh /opt/${{ steps.clang-vars.outputs.clang_package }}.7z
+
+      - name: Extract Clang from 7z cache
+        if: steps.cache-clang.outputs.cache-hit == 'true'
+        run: |
+          echo "Extracting from 7z cache..."
+          sudo apt-get update -qq && sudo apt-get install -y -qq p7zip-full
+          sudo 7z x /opt/${{ steps.clang-vars.outputs.clang_package }}.7z -o/opt/
+          echo "Extraction complete!"
+          ls -la /opt/${{ steps.clang-vars.outputs.clang_package }}/bin/ | head -5
 
       - name: Set Clang PATH
         run: |
@@ -278,19 +298,31 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Cache Renode
+      - name: Cache Renode (7z compressed)
         id: cache-renode
         uses: actions/cache@v4
         with:
-          path: renode_1.16.1_portable
-          key: renode-1.16.1-${{ runner.os }}
+          path: renode_1.16.1_portable.7z
+          key: renode-1.16.1-${{ runner.os }}-v2
 
-      - name: Download Renode portable
+      - name: Download and compress Renode
         if: steps.cache-renode.outputs.cache-hit != 'true'
         run: |
           wget -q https://github.com/renode/renode/releases/download/v1.16.1/renode-1.16.1.linux-portable.tar.gz
           tar -xzf renode-1.16.1.linux-portable.tar.gz
           rm renode-1.16.1.linux-portable.tar.gz
+          sudo apt-get update -qq && sudo apt-get install -y -qq p7zip-full
+          7z a -mx=9 -mmt=on renode_1.16.1_portable.7z renode_1.16.1_portable
+          rm -rf renode_1.16.1_portable
+          echo "Compressed size:"
+          ls -lh renode_1.16.1_portable.7z
+
+      - name: Extract Renode from 7z cache
+        if: steps.cache-renode.outputs.cache-hit == 'true'
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq p7zip-full
+          7z x renode_1.16.1_portable.7z
+          echo "Extraction complete!"
 
       - name: Add Renode to PATH
         run: echo "$(pwd)/renode_1.16.1_portable" >> $GITHUB_PATH
