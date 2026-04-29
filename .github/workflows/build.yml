@@ -202,4 +202,6 @@ jobs:
           path: build/
 
       - name: Run Renode tests
-        run: renode test/k64_test.resc --console
+        run: |
+          renode --plain --console test/k64_test.resc
+          echo "EXIT CODE: $?"
