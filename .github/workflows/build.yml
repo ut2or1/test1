@@ -43,16 +43,32 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Cache cppcheck
+      - name: Cache cppcheck deb packages
         id: cache-cppcheck
         uses: actions/cache@v4
         with:
-          path: /usr/bin/cppcheck
-          key: cppcheck-${{ runner.os }}
+          path: /opt/cppcheck-packages
+          key: cppcheck-packages-${{ runner.os }}-${{ runner.arch }}
 
-      - name: Install cppcheck
+      - name: Download cppcheck and dependencies
         if: steps.cache-cppcheck.outputs.cache-hit != 'true'
-        run: sudo apt-get update && sudo apt-get install -y cppcheck
+        run: |
+          mkdir -p /opt/cppcheck-packages
+          cd /opt/cppcheck-packages
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --download-only cppcheck
+          cp /var/cache/apt/archives/*.deb /opt/cppcheck-packages/
+          echo "Downloaded packages:"
+          ls -la /opt/cppcheck-packages/
+
+      - name: Install cppcheck from cached packages
+        run: |
+          if [ -d "/opt/cppcheck-packages" ] && [ -n "$(ls -A /opt/cppcheck-packages/*.deb 2>/dev/null)" ]; then
+            sudo dpkg -i /opt/cppcheck-packages/*.deb
+          else
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq cppcheck
+          fi
 
       - name: Run cppcheck
         run: make check
@@ -94,7 +110,7 @@ jobs:
           echo "GCC_DIR=$GCC_DIR" >> $GITHUB_ENV
           echo "GCC_DIR from cache: $GCC_DIR"
 
-      - name: Cache ccache and dependencies
+      - name: Cache ccache deb packages
         id: cache-ccache
         uses: actions/cache@v4
         with:
@@ -159,25 +175,63 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Cache LLVM/Clang
+      - name: Cache LLVM/Clang deb packages
         id: cache-clang
         uses: actions/cache@v4
         with:
-          path: |
-            /usr/lib/llvm-18
-            /usr/bin/clang-18
-            /usr/bin/llvm-objcopy-18
-            /usr/bin/llvm-size-18
-          key: llvm-clang-18-${{ runner.os }}
+          path: /opt/clang-packages
+          key: clang-packages-18-${{ runner.os }}-${{ runner.arch }}
 
-      - name: Install LLVM/Clang
+      - name: Download LLVM/Clang and dependencies
         if: steps.cache-clang.outputs.cache-hit != 'true'
         run: |
+          mkdir -p /opt/clang-packages
+          cd /opt/clang-packages
           wget -q https://apt.llvm.org/llvm.sh
           chmod +x llvm.sh
           sudo ./llvm.sh 18
-          sudo apt-get install -y libstdc++-12-dev-armel-cross
           rm llvm.sh
+          cp /var/cache/apt/archives/*.deb /opt/clang-packages/
+          echo "Downloaded packages:"
+          ls -la /opt/clang-packages/
+
+      - name: Install LLVM/Clang from cached packages
+        run: |
+          if [ -d "/opt/clang-packages" ] && [ -n "$(ls -A /opt/clang-packages/*.deb 2>/dev/null)" ]; then
+            sudo dpkg -i /opt/clang-packages/*.deb
+          else
+            wget -q https://apt.llvm.org/llvm.sh
+            chmod +x llvm.sh
+            sudo ./llvm.sh 18
+            rm llvm.sh
+          fi
+
+      - name: Cache libstdc++-armel-cross deb packages
+        id: cache-libstdcpp
+        uses: actions/cache@v4
+        with:
+          path: /opt/libstdcpp-packages
+          key: libstdcpp-armel-packages-${{ runner.os }}-${{ runner.arch }}
+
+      - name: Download libstdc++-armel-cross and dependencies
+        if: steps.cache-libstdcpp.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p /opt/libstdcpp-packages
+          cd /opt/libstdcpp-packages
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --download-only libstdc++-12-dev-armel-cross
+          cp /var/cache/apt/archives/*.deb /opt/libstdcpp-packages/
+          echo "Downloaded packages:"
+          ls -la /opt/libstdcpp-packages/
+
+      - name: Install libstdc++-armel-cross from cached packages
+        run: |
+          if [ -d "/opt/libstdcpp-packages" ] && [ -n "$(ls -A /opt/libstdcpp-packages/*.deb 2>/dev/null)" ]; then
+            sudo dpkg -i /opt/libstdcpp-packages/*.deb
+          else
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq libstdc++-12-dev-armel-cross
+          fi
 
       - name: Build with Clang
         run: make -j$(nproc) CC=clang-18 USE_CLANG=1
