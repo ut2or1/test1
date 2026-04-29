@@ -34,9 +34,6 @@ on:
           - '14.2.Rel1'
           - '15.2.Rel1'
 
-env:
-  RENODE_VERSION: '1.16.1'
-
 jobs:
   static-analysis:
     runs-on: ubuntu-latest
@@ -51,15 +48,11 @@ jobs:
         uses: actions/cache@v4
         with:
           path: /usr/bin/cppcheck
-          key: cppcheck-${{ runner.os }}-${{ runner.arch }}
+          key: cppcheck-${{ runner.os }}
 
       - name: Install cppcheck
         if: steps.cache-cppcheck.outputs.cache-hit != 'true'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y cppcheck
-          sudo cp /usr/bin/cppcheck /usr/bin/cppcheck_cached
-          sudo mv /usr/bin/cppcheck_cached /usr/bin/cppcheck
+        run: sudo apt-get update && sudo apt-get install -y cppcheck
 
       - name: Run cppcheck
         run: make check
@@ -76,39 +69,36 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set toolchain paths
-        id: paths
-        run: |
-          VERSION="${{ inputs.toolchain_version }}"
-          echo "toolchain_dir=/opt/arm-gnu-toolchain-${VERSION}-x86_64-arm-none-eabi" >> $GITHUB_OUTPUT
-          echo "toolchain_file=arm-gnu-toolchain-${VERSION}-x86_64-arm-none-eabi.tar.xz" >> $GITHUB_OUTPUT
-          echo "toolchain_url=https://developer.arm.com/-/media/Files/downloads/gnu/${VERSION}/binrel/arm-gnu-toolchain-${VERSION}-x86_64-arm-none-eabi.tar.xz" >> $GITHUB_OUTPUT
-
       - name: Cache ARM GCC Toolchain
         id: cache-gcc
         uses: actions/cache@v4
         with:
-          path: ${{ steps.paths.outputs.toolchain_dir }}
-          key: arm-gcc-${{ inputs.toolchain_version }}-${{ runner.os }}-${{ runner.arch }}
+          path: /opt/arm-gnu-toolchain-${{ inputs.toolchain_version }}-x86_64-arm-none-eabi
+          key: arm-gcc-${{ inputs.toolchain_version }}-${{ runner.os }}
 
       - name: Download and extract ARM GCC
         if: steps.cache-gcc.outputs.cache-hit != 'true'
         run: |
-          echo "Downloading ARM GCC ${{ inputs.toolchain_version }}..."
-          wget -q "${{ steps.paths.outputs.toolchain_url }}" -O /tmp/${{ steps.paths.outputs.toolchain_file }}
-          echo "Extracting to /opt..."
-          sudo mkdir -p /opt
-          sudo tar -xf /tmp/${{ steps.paths.outputs.toolchain_file }} -C /opt
-          rm /tmp/${{ steps.paths.outputs.toolchain_file }}
-          echo "Extraction complete!"
-          ls -la ${{ steps.paths.outputs.toolchain_dir }}/bin/ | head -5
+          VERSION="${{ inputs.toolchain_version }}"
+          wget -q "https://developer.arm.com/-/media/Files/downloads/gnu/${VERSION}/binrel/arm-gnu-toolchain-${VERSION}-x86_64-arm-none-eabi.tar.xz" -O /tmp/gcc.tar.xz
+          sudo tar -xf /tmp/gcc.tar.xz -C /opt
+          rm /tmp/gcc.tar.xz
+          GCC_DIR=$(ls -d /opt/arm-gnu-toolchain-*)
+          echo "GCC_DIR=$GCC_DIR" >> $GITHUB_ENV
+          echo "GCC found at: $GCC_DIR"
+
+      - name: Set GCC_DIR from cache or extraction
+        run: |
+          GCC_DIR=$(ls -d /opt/arm-gnu-toolchain-*)
+          echo "GCC_DIR=$GCC_DIR" >> $GITHUB_ENV
+          echo "GCC_DIR=$GCC_DIR"
 
       - name: Build with GCC
         run: |
           make -j$(nproc) \
-            CC="${{ steps.paths.outputs.toolchain_dir }}/bin/arm-none-eabi-gcc" \
-            OBJCOPY="${{ steps.paths.outputs.toolchain_dir }}/bin/arm-none-eabi-objcopy" \
-            SIZE="${{ steps.paths.outputs.toolchain_dir }}/bin/arm-none-eabi-size"
+            CC="$GCC_DIR/bin/arm-none-eabi-gcc" \
+            OBJCOPY="$GCC_DIR/bin/arm-none-eabi-objcopy" \
+            SIZE="$GCC_DIR/bin/arm-none-eabi-size"
 
       - name: Upload GCC artifacts
         uses: actions/upload-artifact@v4
@@ -139,7 +129,7 @@ jobs:
             /usr/bin/clang-18
             /usr/bin/llvm-objcopy-18
             /usr/bin/llvm-size-18
-          key: llvm-clang-18-${{ runner.os }}-${{ runner.arch }}
+          key: llvm-clang-18-${{ runner.os }}
 
       - name: Install LLVM/Clang
         if: steps.cache-clang.outputs.cache-hit != 'true'
@@ -178,21 +168,20 @@ jobs:
         id: cache-renode
         uses: actions/cache@v4
         with:
-          path: renode_${{ env.RENODE_VERSION }}_portable
-          key: renode-${{ env.RENODE_VERSION }}-${{ runner.os }}-${{ runner.arch }}
+          path: renode_1.16.1_portable
+          key: renode-1.16.1-${{ runner.os }}
 
       - name: Download Renode portable
         if: steps.cache-renode.outputs.cache-hit != 'true'
         run: |
-          echo "Downloading Renode v${{ env.RENODE_VERSION }}..."
-          wget -q "https://github.com/renode/renode/releases/download/v${{ env.RENODE_VERSION }}/renode-${{ env.RENODE_VERSION }}.linux-portable.tar.gz"
-          echo "Extracting Renode..."
-          tar -xzf "renode-${{ env.RENODE_VERSION }}.linux-portable.tar.gz"
-          echo "Renode extracted to: $(pwd)/renode_${{ env.RENODE_VERSION }}_portable"
-          rm "renode-${{ env.RENODE_VERSION }}.linux-portable.tar.gz"
+          wget -q https://github.com/renode/renode/releases/download/v1.16.1/renode-1.16.1.linux-portable.tar.gz
+          tar -xzf renode-1.16.1.linux-portable.tar.gz
+          echo "$(pwd)/renode_1.16.1_portable" >> $GITHUB_PATH
+          rm renode-1.16.1.linux-portable.tar.gz
 
       - name: Add Renode to PATH
-        run: echo "$(pwd)/renode_${{ env.RENODE_VERSION }}_portable" >> $GITHUB_PATH
+        if: steps.cache-renode.outputs.cache-hit == 'true'
+        run: echo "$(pwd)/renode_1.16.1_portable" >> $GITHUB_PATH
 
       - name: Verify Renode
         run: |
@@ -214,9 +203,7 @@ jobs:
           path: build/
 
       - name: List build artifacts
-        run: |
-          echo "Build artifacts:"
-          ls -la build/ || echo "No build directory"
+        run: ls -la build/ || echo "No build directory"
 
       - name: Run Renode tests
         run: renode test/k64_test.resc --console
