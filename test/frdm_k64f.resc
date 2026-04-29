@@ -1,4 +1,4 @@
-#using sysbus
+using sysbus
 
 cpu: CPU.CortexM @ sysbus
     cpuType: "cortex-m4f"
