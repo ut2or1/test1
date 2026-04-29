@@ -38,7 +38,7 @@ jobs:
   static-analysis:
     runs-on: ubuntu-latest
     if: inputs.run_cppcheck == 'yes'
-    
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -94,19 +94,32 @@ jobs:
           echo "GCC_DIR=$GCC_DIR" >> $GITHUB_ENV
           echo "GCC_DIR from cache: $GCC_DIR"
 
-      - name: Cache ccache binary
+      - name: Cache ccache and dependencies
         id: cache-ccache
         uses: actions/cache@v4
         with:
-          path: /usr/local/bin/ccache
-          key: ccache-binary-${{ runner.os }}-${{ runner.arch }}
+          path: /opt/ccache-packages
+          key: ccache-packages-${{ runner.os }}-${{ runner.arch }}
 
-      - name: Install ccache
+      - name: Download ccache and dependencies
         if: steps.cache-ccache.outputs.cache-hit != 'true'
         run: |
+          mkdir -p /opt/ccache-packages
+          cd /opt/ccache-packages
           sudo apt-get update -qq
-          sudo apt-get install -y -qq ccache
-          sudo cp /usr/bin/ccache /usr/local/bin/ccache
+          sudo apt-get install -y -qq --download-only ccache
+          cp /var/cache/apt/archives/*.deb /opt/ccache-packages/
+          echo "Downloaded packages:"
+          ls -la /opt/ccache-packages/
+
+      - name: Install ccache from cached packages
+        run: |
+          if [ -d "/opt/ccache-packages" ] && [ -n "$(ls -A /opt/ccache-packages/*.deb 2>/dev/null)" ]; then
+            sudo dpkg -i /opt/ccache-packages/*.deb
+          else
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq ccache
+          fi
 
       - name: Cache ccache objects
         uses: actions/cache@v4
@@ -118,7 +131,7 @@ jobs:
 
       - name: Build with GCC (ccache)
         run: |
-          export PATH="$GCC_DIR/bin:/usr/local/bin:$PATH"
+          export PATH="$GCC_DIR/bin:$PATH"
           export CCACHE_DIR=$HOME/.ccache
           ccache -z > /dev/null
           make -j$(nproc)
@@ -229,3 +242,4 @@ jobs:
       - name: Run Renode tests
         run: |
           renode --plain --console test/k64_test.resc
+          echo "EXIT CODE: $?"
