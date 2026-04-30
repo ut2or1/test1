@@ -282,27 +282,26 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Cache Renode
-        id: cache-renode
+      - name: Cache Renode Archive
         uses: actions/cache@v4
         with:
-          path: /tmp/renode.tar.gz
-          key: renode-1.16.1-${{ runner.os }}
+          path: |
+            .renode-cache/renode-*.tar.gz
+            .renode-cache/renode-*.zip
+          key: renode-portable-${{ runner.os }}-1.16.1
+          restore-keys: renode-portable-${{ runner.os }}-
 
-      - name: Download Renode portable
-        if: steps.cache-renode.outputs.cache-hit != 'true'
-        run: |
-          wget -q https://github.com/renode/renode/releases/download/v1.16.1/renode-1.16.1.linux-portable.tar.gz -O /tmp/renode.tar.gz
-          echo "Downloaded size:"
-          ls -lh /tmp/renode.tar.gz
-
-      - name: Extract Renode
-        run: |
-          tar -xzf /tmp/renode.tar.gz -C /tmp
-          echo "Extraction complete!"
+      - name: Setup Renode Portable
+        id: renode
+        uses: ut2or1/setup-renode@v1
+        with:
+          version: '1.16.1'
+          url: 'https://github.com/renode/renode/releases/download/v1.16.1/renode-1.16.1.linux-portable.tar.gz'
+          cache-dir: '.renode-cache'
+          strip-components: '1'
 
       - name: Add Renode to PATH
-        run: echo "/tmp/renode_1.16.1_portable" >> $GITHUB_PATH
+        run: echo "${{ steps.renode.outputs.renode-path }}" >> $GITHUB_PATH
 
       - name: Verify Renode
         run: |
