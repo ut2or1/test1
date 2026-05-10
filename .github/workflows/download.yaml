@@ -1,0 +1,208 @@
+name: Download Toolchains as Temporary Artifacts
+
+on:
+  workflow_dispatch:
+    inputs:
+      toolchain_type:
+        description: 'Type of toolchain to download'
+        required: true
+        type: choice
+        default: 'gcc'
+        options:
+          - 'gcc'
+          - 'clang'
+          - 'both'
+      gcc_version:
+        description: 'ARM GCC Version'
+        required: true
+        type: choice
+        default: '15.2.Rel1'
+        options:
+          - '10.3-2021.10'
+          - '11.2-2022.02'
+          - '12.2.Rel1'
+          - '13.2.Rel1'
+          - '13.3.Rel1'
+          - '14.2.Rel1'
+          - '15.2.Rel1'
+      clang_version:
+        description: 'LLVM/Clang Version'
+        required: true
+        type: choice
+        default: '19.1.0'
+        options:
+          - '19.1.0'
+          - '20.1.0'
+          - '21.1.0'
+          - '22.1.0'
+      retention_hours:
+        description: 'Artifact retention time in hours'
+        required: false
+        type: number
+        default: 1
+
+jobs:
+  download-gcc:
+    runs-on: ubuntu-latest
+    if: inputs.toolchain_type == 'gcc' || inputs.toolchain_type == 'both'
+    
+    steps:
+      - name: Check if GCC already in cache
+        id: cache-gcc
+        uses: actions/cache@v4
+        with:
+          path: /tmp/gcc
+          key: gcc-${{ inputs.gcc_version }}-${{ runner.os }}
+          restore-keys: |
+            gcc-${{ inputs.gcc_version }}-${{ runner.os }}
+
+      - name: Download ARM GCC
+        if: steps.cache-gcc.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p /tmp/gcc
+          cd /tmp/gcc
+          VERSION="${{ inputs.gcc_version }}"
+          ARCHIVE="arm-gnu-toolchain-${VERSION}-x86_64-arm-none-eabi.tar.xz"
+          URL="https://developer.arm.com/-/media/Files/downloads/gnu/${VERSION}/binrel/${ARCHIVE}"
+          
+          echo "Downloading GCC ${VERSION}..."
+          wget -q --show-progress "$URL" -O "$ARCHIVE"
+          
+          if [ -f "$ARCHIVE" ]; then
+            echo "✅ Downloaded successfully: $(ls -lh $ARCHIVE)"
+            echo "archive_name=${ARCHIVE}" >> $GITHUB_OUTPUT
+          else
+            echo "❌ Download failed"
+            exit 1
+          fi
+
+      - name: Get archive name from cache
+        if: steps.cache-gcc.outputs.cache-hit == 'true'
+        id: get-archive
+        run: |
+          cd /tmp/gcc
+          ARCHIVE=$(ls *.tar.xz 2>/dev/null | head -1)
+          if [ -n "$ARCHIVE" ]; then
+            echo "✅ Using cached: ${ARCHIVE}"
+            echo "archive_name=${ARCHIVE}" >> $GITHUB_OUTPUT
+          else
+            echo "❌ No archive found in cache"
+            exit 1
+          fi
+
+      - name: Upload GCC as artifact (1 hour retention)
+        uses: actions/upload-artifact@v4
+        with:
+          name: gcc-toolchain-${{ inputs.gcc_version }}
+          path: /tmp/gcc/*.tar.xz
+          retention-days: 0.0417  # 1 hour = 1/24 days
+          if-no-files-found: error
+
+  download-clang:
+    runs-on: ubuntu-latest
+    if: inputs.toolchain_type == 'clang' || inputs.toolchain_type == 'both'
+    
+    steps:
+      - name: Check if Clang already in cache
+        id: cache-clang
+        uses: actions/cache@v4
+        with:
+          path: /tmp/clang
+          key: clang-${{ inputs.clang_version }}-${{ runner.os }}
+          restore-keys: |
+            clang-${{ inputs.clang_version }}-${{ runner.os }}
+
+      - name: Download LLVM/Clang
+        if: steps.cache-clang.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p /tmp/clang
+          cd /tmp/clang
+          VERSION="${{ inputs.clang_version }}"
+          PACKAGE="LLVM-${VERSION}-Linux-X64"
+          ARCHIVE="${PACKAGE}.tar.xz"
+          URL="https://github.com/llvm/llvm-project/releases/download/llvmorg-${VERSION}/${ARCHIVE}"
+          
+          echo "Downloading Clang ${VERSION}..."
+          wget -q --show-progress "$URL" -O "$ARCHIVE"
+          
+          if [ -f "$ARCHIVE" ]; then
+            echo "✅ Downloaded successfully: $(ls -lh $ARCHIVE)"
+            echo "archive_name=${ARCHIVE}" >> $GITHUB_OUTPUT
+          else
+            echo "❌ Download failed"
+            exit 1
+          fi
+
+      - name: Get archive name from cache
+        if: steps.cache-clang.outputs.cache-hit == 'true'
+        id: get-archive
+        run: |
+          cd /tmp/clang
+          ARCHIVE=$(ls *.tar.xz 2>/dev/null | head -1)
+          if [ -n "$ARCHIVE" ]; then
+            echo "✅ Using cached: ${ARCHIVE}"
+            echo "archive_name=${ARCHIVE}" >> $GITHUB_OUTPUT
+          else
+            echo "❌ No archive found in cache"
+            exit 1
+          fi
+
+      - name: Upload Clang as artifact (1 hour retention)
+        uses: actions/upload-artifact@v4
+        with:
+          name: clang-toolchain-${{ inputs.clang_version }}
+          path: /tmp/clang/*.tar.xz
+          retention-days: 0.0417  # 1 hour = 1/24 days
+          if-no-files-found: error
+
+  download-both:
+    runs-on: ubuntu-latest
+    if: inputs.toolchain_type == 'both'
+    needs: [download-gcc, download-clang]
+    
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: /tmp/all-toolchains
+
+      - name: Create combined archive
+        run: |
+          cd /tmp/all-toolchains
+          tar -czf toolchains-combined.tar.gz */
+          ls -lh toolchains-combined.tar.gz
+
+      - name: Upload combined artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: all-toolchains-combined
+          path: /tmp/all-toolchains/toolchains-combined.tar.gz
+          retention-days: 0.0417  # 1 hour
+
+  list-artifacts:
+    runs-on: ubuntu-latest
+    needs: [download-gcc, download-clang, download-both]
+    if: always()
+    
+    steps:
+      - name: List created artifacts
+        run: |
+          echo "=== Created Artifacts (retention: ${{ inputs.retention_hours }} hour(s)) ==="
+          echo ""
+          
+          if [ "${{ inputs.toolchain_type }}" == "gcc" ] || [ "${{ inputs.toolchain_type }}" == "both" ]; then
+            echo "✅ gcc-toolchain-${{ inputs.gcc_version }}.tar.xz"
+            echo "   Size: ~$(curl -sI https://developer.arm.com/-/media/Files/downloads/gnu/${{ inputs.gcc_version }}/binrel/arm-gnu-toolchain-${{ inputs.gcc_version }}-x86_64-arm-none-eabi.tar.xz | grep -i content-length | awk '{print $2}' | numfmt --to=iec 2>/dev/null || echo 'unknown')"
+          fi
+          
+          if [ "${{ inputs.toolchain_type }}" == "clang" ] || [ "${{ inputs.toolchain_type }}" == "both" ]; then
+            echo "✅ clang-toolchain-${{ inputs.clang_version }}.tar.xz"
+          fi
+          
+          if [ "${{ inputs.toolchain_type }}" == "both" ]; then
+            echo "✅ all-toolchains-combined.tar.gz"
+          fi
+          
+          echo ""
+          echo "📦 Artifacts will expire after ${{ inputs.retention_hours }} hour(s)"
+          echo "⬇️ Download from: GitHub Actions → Summary → Artifacts"
